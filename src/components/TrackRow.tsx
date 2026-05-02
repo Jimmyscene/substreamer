@@ -50,6 +50,13 @@ export const TrackRow = memo(function TrackRow({ track, trackNumber, colors, onP
   const downloadStatus = useDownloadStatus('song', track.id);
   const offlineMode = offlineModeStore((s) => s.offlineMode);
   const rating = useRating(track.id, track.userRating);
+  // In offline mode, tracks that aren't fully cached can't play and shouldn't
+  // accept any interaction — tapping them today silently routes to the first
+  // playable track (via playerService.buildPlayableQueue) which is confusing
+  // because the row gives no signal that it's inert. Songs report 'complete'
+  // exactly when getLocalTrackUri(id) is non-null, matching the predicate
+  // playerService.childToTrack uses to filter the offline queue.
+  const isOfflineUnplayable = offlineMode && downloadStatus !== 'complete';
 
   const handleAddToQueue = useCallback(() => {
     addSongToQueue(track);
@@ -103,12 +110,15 @@ export const TrackRow = memo(function TrackRow({ track, trackNumber, colors, onP
       restingBackgroundColor="transparent"
       onLongPress={handleLongPress}
       onPress={onPress}
+      disabled={isOfflineUnplayable}
     >
       <View
         style={[
           styles.trackRow,
           { borderBottomColor: colors.border },
+          isOfflineUnplayable && styles.trackRowDisabled,
         ]}
+        accessibilityState={isOfflineUnplayable ? { disabled: true } : undefined}
       >
         <View style={styles.trackLeft}>
           {trackNumber != null && (
@@ -174,6 +184,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  trackRowDisabled: {
+    opacity: 0.4,
   },
   trackLeft: {
     flex: 1,

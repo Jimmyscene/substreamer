@@ -94,6 +94,14 @@ export interface SwipeableRowProps {
   onLongPress?: () => void;
   /** Called when the row is tapped. */
   onPress?: () => void;
+  /**
+   * When true the row reads as inert: swipe gestures are suppressed,
+   * tap/long-press callbacks are not invoked, and the press-opacity
+   * tween + selection haptic do not fire. The visual dimming itself is
+   * the responsibility of the caller (apply opacity to the children
+   * View) so the SwipeableRow primitive doesn't need a theme hook.
+   */
+  disabled?: boolean;
   children: React.ReactNode;
 }
 
@@ -125,6 +133,7 @@ export const SwipeableRow = memo(function SwipeableRow({
   restingBackgroundColor,
   onLongPress,
   onPress,
+  disabled = false,
   children,
 }: SwipeableRowProps) {
   const { colors } = useTheme();
@@ -237,39 +246,43 @@ export const SwipeableRow = memo(function SwipeableRow({
   const pressOpacityAnim = useRef(new RNAnimated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
+    if (disabled) return;
     if (isOpenRef.current) return;
     RNAnimated.timing(pressOpacityAnim, {
       toValue: PRESS_OPACITY,
       duration: PRESS_IN_DURATION,
       useNativeDriver: true,
     }).start();
-  }, [pressOpacityAnim]);
+  }, [disabled, pressOpacityAnim]);
 
   const handlePressOut = useCallback(() => {
+    if (disabled) return;
     RNAnimated.timing(pressOpacityAnim, {
       toValue: 1,
       duration: PRESS_OUT_DURATION,
       useNativeDriver: true,
     }).start();
-  }, [pressOpacityAnim]);
+  }, [disabled, pressOpacityAnim]);
 
   const handlePress = useCallback(() => {
+    if (disabled) return;
     if (isOpenRef.current) {
       swipeableRef.current?.close();
       return;
     }
     Haptics.selectionAsync();
     onPress?.();
-  }, [onPress]);
+  }, [disabled, onPress]);
 
   const handleLongPress = useCallback(() => {
+    if (disabled) return;
     if (isOpenRef.current) {
       swipeableRef.current?.close();
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     onLongPress?.();
-  }, [onLongPress]);
+  }, [disabled, onLongPress]);
 
   /* ---- Action panel render functions ---- */
 
@@ -338,14 +351,15 @@ export const SwipeableRow = memo(function SwipeableRow({
   return (
     <ReanimatedSwipeable
       ref={swipeableRef as any}
+      enabled={!disabled}
       friction={effectiveFriction}
       overshootFriction={effectiveOvershootFriction}
       leftThreshold={40}
       rightThreshold={40}
       overshootLeft={hasRight}
       overshootRight={hasLeft}
-      renderLeftActions={hasRight ? renderLeftPanel : undefined}
-      renderRightActions={hasLeft ? renderRightPanel : undefined}
+      renderLeftActions={hasRight && !disabled ? renderLeftPanel : undefined}
+      renderRightActions={hasLeft && !disabled ? renderRightPanel : undefined}
       onSwipeableOpenStartDrag={handleOpenStartDrag}
       onSwipeableWillOpen={handleSwipeableWillOpen}
       onSwipeableOpen={handleSwipeableOpen}
@@ -357,6 +371,7 @@ export const SwipeableRow = memo(function SwipeableRow({
         onLongPress={onLongPress ? handleLongPress : undefined}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        disabled={disabled}
         delayLongPress={400}
       >
         <RNAnimated.View style={[contentClipStyle, { opacity: pressOpacityAnim }]}>
