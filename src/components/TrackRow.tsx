@@ -120,55 +120,66 @@ export const TrackRow = memo(function TrackRow({ track, trackNumber, colors, onP
         ]}
         accessibilityState={isOfflineUnplayable ? { disabled: true } : undefined}
       >
-        <View style={styles.trackLeft}>
-          {trackNumber != null && (
-            <Text style={[styles.trackNum, { color: colors.textSecondary }]}>
-              {trackNumber}
-            </Text>
-          )}
-          {showCoverArt && (
-            <CachedImage
-              coverArtId={track.coverArt}
-              size={COVER_SIZE}
-              style={styles.cover}
-              resizeMode="cover"
-            />
-          )}
-          <View style={styles.trackInfo}>
-            <Text style={[styles.trackTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+        {trackNumber != null && (
+          <Text style={[styles.trackNum, { color: colors.textSecondary }]}>
+            {trackNumber}
+          </Text>
+        )}
+        {showCoverArt && (
+          <CachedImage
+            coverArtId={track.coverArt}
+            size={COVER_SIZE}
+            style={styles.cover}
+            resizeMode="cover"
+          />
+        )}
+        <View style={styles.trackInfo}>
+          {/* Line 1: title fills, duration pinned to the right edge. */}
+          <View style={styles.line}>
+            <Text
+              style={[styles.trackTitle, { color: colors.textPrimary }]}
+              numberOfLines={1}
+            >
               {track.title}
             </Text>
-            <Text style={[styles.trackArtist, { color: colors.textSecondary }]} numberOfLines={1}>
+            <RowMetaLine
+              slots={['duration']}
+              durationText={duration}
+              durationFontSize={14}
+            />
+          </View>
+          {/* Line 2: artist fills, status icons pinned to the right edge. */}
+          <View style={[styles.line, styles.artistLine]}>
+            <Text
+              style={[styles.trackArtist, { color: colors.textSecondary }]}
+              numberOfLines={1}
+            >
               {track.artist ?? t('unknownArtist')}
             </Text>
-            {showAlbumName && (
-              <View style={styles.metaAlbum}>
-                <Ionicons name="disc-outline" size={14} color={colors.primary} />
-                <View style={styles.albumTextWrapper}>
-                  <Text
-                    style={[styles.albumText, { color: colors.textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    {track.album ?? t('unknownAlbum')}
-                  </Text>
-                </View>
-              </View>
-            )}
+            <RowMetaLine
+              slots={['rating', 'download', 'heart']}
+              rating={rating}
+              starred={starred}
+              downloadStatus={
+                downloadStatus === 'complete' || downloadStatus === 'partial'
+                  ? downloadStatus
+                  : 'none'
+              }
+            />
           </View>
-        </View>
-        <View style={styles.trackRight}>
-          <RowMetaLine
-            slots={['rating', 'download', 'heart', 'duration']}
-            rating={rating}
-            starred={starred}
-            downloadStatus={
-              downloadStatus === 'complete' || downloadStatus === 'partial'
-                ? downloadStatus
-                : 'none'
-            }
-            durationText={duration}
-            durationFontSize={14}
-          />
+          {showAlbumName && (
+            <View style={styles.metaAlbum}>
+              <Ionicons name="disc-outline" size={14} color={colors.primary} />
+              <View style={styles.albumTextWrapper}>
+                <Text
+                  style={[styles.albumText, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {track.album ?? t('unknownAlbum')}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </SwipeableRow>
@@ -179,20 +190,18 @@ const styles = StyleSheet.create({
   trackRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     minHeight: 80,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    // Matches the `info` block padding (16) on album-detail /
+    // playlist-detail so the first column of the row lines up with the
+    // title / "by owner" / song-count text above. The outer
+    // trackItemWrap on those screens intentionally has no horizontal
+    // padding now, so this is the single source of truth.
+    paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   trackRowDisabled: {
     opacity: 0.4,
-  },
-  trackLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 0,
   },
   trackNum: {
     fontSize: 14,
@@ -209,13 +218,26 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  // Each text line splits into a left-flexed text + a right-pinned
+  // RowMetaLine block. The text gets `flex: 1` + numberOfLines={1} so
+  // it truncates instead of pushing the trailing block off-screen.
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  artistLine: {
+    marginTop: 2,
+  },
   trackTitle: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: '600',
   },
   trackArtist: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 14,
-    marginTop: 2,
   },
   metaAlbum: {
     flexDirection: 'row',
@@ -229,8 +251,5 @@ const styles = StyleSheet.create({
   },
   albumText: {
     fontSize: 12,
-  },
-  trackRight: {
-    marginLeft: 12,
   },
 });

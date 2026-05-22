@@ -545,7 +545,10 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   trackItemWrap: {
-    paddingHorizontal: 16,
+    // No padding here — TrackRow now provides 16px internal horizontal
+    // padding (matches the `info` block padding) so the row's content
+    // edge aligns with the title / by-owner / song-count text block
+    // above, and the swipe-gesture area extends to the screen edge.
   },
   discHeaderWrap: {
     flexDirection: 'row',

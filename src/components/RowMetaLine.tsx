@@ -48,15 +48,23 @@ export const RATING_SLOT_WIDTH = 28;
 /** 14px icon (heart, downloaded badge) + 4px on each side. */
 export const ICON_SLOT_WIDTH = 22;
 /**
- * Clock icon (14) + gap (3) + just enough text room for the bounded
- * formats. Sized against:
- *   - `formatCompactDuration` worst case "23h 59m" (7 chars) at 12px tabular-nums,
- *   - `formatTrackDuration` typical max "59:59" / "99:59" (5 chars) at 14px,
- * with ~2-4px breathing room for font variance across iOS SF / Android
- * Roboto. The bounded format is what lets the slot stay this snug — see
- * `formatCompactDuration` doc.
+ * Just enough text room for the bounded duration formats. Two widths,
+ * picked at render time from `durationFontSize`:
+ *
+ *   - **48px** (default, 12px font) for the sub-line meta in AlbumRow /
+ *     PlaylistRow / SongRow, which show `formatCompactDuration` up to
+ *     "23h 59m" (7 chars).
+ *   - **40px** (14px font) for the row-level trailing block in TrackRow /
+ *     QueueItemRow, which only ever show `formatTrackDuration` up to
+ *     "99:59" (5 chars). The narrower slot removes the dead space to the
+ *     left of the time text inside the slot, freeing horizontal room for
+ *     the title column.
+ *
+ * The clock icon that used to live in this slot was dropped to widen the
+ * title column on song/track rows.
  */
-export const DURATION_SLOT_WIDTH = 64;
+export const DURATION_SLOT_WIDTH = 48;
+export const DURATION_SLOT_WIDTH_TRACK = 40;
 
 export type SlotKey = 'rating' | 'heart' | 'download' | 'duration';
 
@@ -193,24 +201,28 @@ export function RowMetaLine(props: RowMetaLineProps) {
         </View>
       ) : null}
       {showDuration ? (
-        <View style={styles.durationSlot} testID="rowmetaline-slot-duration">
+        <View
+          style={[
+            styles.durationSlot,
+            {
+              width:
+                durationFontSize >= 14
+                  ? DURATION_SLOT_WIDTH_TRACK
+                  : DURATION_SLOT_WIDTH,
+            },
+          ]}
+          testID="rowmetaline-slot-duration"
+        >
           {durationText ? (
-            <>
-              {/* Clock pins to the slot's left edge so it lines up across
-                  rows; the text below uses flex:1 + textAlign:'right' so
-                  its right edge lines up across rows even as the value
-                  width varies between "10m" and "1h15m". */}
-              <Ionicons name="time-outline" size={14} color={colors.primary} />
-              <Text
-                style={[
-                  styles.durationText,
-                  { fontSize: durationFontSize, color: durationColor ?? colors.textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {durationText}
-              </Text>
-            </>
+            <Text
+              style={[
+                styles.durationText,
+                { fontSize: durationFontSize, color: durationColor ?? colors.textSecondary },
+              ]}
+              numberOfLines={1}
+            >
+              {durationText}
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -239,23 +251,26 @@ const styles = StyleSheet.create({
   iconSlot: {
     width: ICON_SLOT_WIDTH,
     marginLeft: 6,
-    alignItems: 'center',
+    // Right-align the icon inside its slot so the trailing icon's right
+    // edge matches the right edge of any sibling block (e.g. the
+    // duration slot). Default flexDirection is column; `alignItems`
+    // controls the cross axis = horizontal.
+    alignItems: 'flex-end',
     justifyContent: 'center',
   },
   durationSlot: {
-    width: DURATION_SLOT_WIDTH,
+    // Width is set inline based on durationFontSize so TrackRow /
+    // QueueItemRow get the narrower 40px slot. See DURATION_SLOT_WIDTH /
+    // DURATION_SLOT_WIDTH_TRACK doc above.
     marginLeft: 6,
     flexDirection: 'row',
     alignItems: 'center',
   },
   durationText: {
-    // `flex: 1` makes the text fill the remaining slot width after the
-    // clock icon, and `textAlign: 'right'` pins the value to the slot's
-    // right edge. Combined with `tabular-nums` this guarantees the
-    // clock stays at the slot's left edge across rows AND the value's
-    // right edge lines up across rows, regardless of content width.
+    // `flex: 1` + `textAlign: 'right'` pins the value to the slot's right
+    // edge across rows regardless of content width. Combined with
+    // `tabular-nums`, "1:23" and "12:34" still line up neatly.
     flex: 1,
-    marginLeft: 3,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },

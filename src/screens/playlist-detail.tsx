@@ -336,11 +336,14 @@ export function PlaylistDetailScreen() {
   /* ---- Normal-mode renderItem ---- */
 
   const renderItem = useCallback(
-    ({ item, index }: { item: Child; index: number }) => (
+    ({ item }: { item: Child; index: number }) => (
       <View style={styles.trackItemWrap}>
+        {/* Playlist tracks omit the position number — the cover thumbnail
+            already anchors the row and the number was eating ~28px of the
+            title column. Album-detail still shows numbers because all of
+            its tracks share the same cover (no thumbnail per row). */}
         <TrackRow
           track={item}
-          trackNumber={`${index + 1}. `}
           colors={colors}
           onPress={() => playTrack(item, tracks, id)}
           showCoverArt
@@ -727,7 +730,7 @@ const styles = StyleSheet.create({
     width: 14,
   },
   trackItemWrap: {
-    paddingHorizontal: 16,
+    // No padding here — see album-detail trackItemWrap for the rationale.
   },
   trackListSpacer: {
     height: 8,

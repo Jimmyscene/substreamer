@@ -132,33 +132,48 @@ export const QueueItemRow = memo(function QueueItemRow({
           )}
         </View>
 
-        {/* Track info */}
+        {/* Track info — title + duration on line 1, artist + status
+            icons on line 2. Mirrors the TrackRow layout so detail-view
+            and play-queue rows have the same shape. */}
         <View style={styles.info}>
-          <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>
-            {track.title}
-          </Text>
-          {track.artist && (
-            <Text style={[styles.artist, { color: subtitleColor }]} numberOfLines={1}>
-              {track.artist}
+          <View style={styles.line}>
+            <Text
+              style={[styles.title, { color: titleColor }]}
+              numberOfLines={1}
+            >
+              {track.title}
             </Text>
-          )}
-        </View>
-
-        {/* Downloaded + Starred indicators + Duration */}
-        <View style={styles.trailing}>
-          <RowMetaLine
-            slots={['rating', 'download', 'heart', 'duration']}
-            rating={rating}
-            starred={starred}
-            downloadStatus={
-              downloadStatus === 'complete' || downloadStatus === 'partial'
-                ? downloadStatus
-                : 'none'
-            }
-            durationText={durationText}
-            durationFontSize={14}
-            durationColor={isActive ? colors.primary : undefined}
-          />
+            <RowMetaLine
+              slots={['duration']}
+              durationText={durationText}
+              durationFontSize={14}
+              durationColor={isActive ? colors.primary : undefined}
+            />
+          </View>
+          <View style={[styles.line, styles.artistLine]}>
+            {track.artist ? (
+              <Text
+                style={[styles.artist, { color: subtitleColor }]}
+                numberOfLines={1}
+              >
+                {track.artist}
+              </Text>
+            ) : (
+              // Keep the line height stable when artist is missing so the
+              // status icons don't shift up onto the title line.
+              <View style={styles.artistPlaceholder} />
+            )}
+            <RowMetaLine
+              slots={['rating', 'download', 'heart']}
+              rating={rating}
+              starred={starred}
+              downloadStatus={
+                downloadStatus === 'complete' || downloadStatus === 'partial'
+                  ? downloadStatus
+                  : 'none'
+              }
+            />
+          </View>
         </View>
       </View>
     </SwipeableRow>
@@ -199,15 +214,33 @@ const styles = StyleSheet.create({
     minWidth: 0,
     marginLeft: 10,
   },
+  // Each text line splits into a left-flexed text + a right-pinned
+  // RowMetaLine block. The text gets `flex: 1` + numberOfLines={1} so it
+  // truncates instead of pushing the trailing block off-screen.
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  artistLine: {
+    marginTop: 2,
+  },
   title: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: '600',
   },
   artist: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 14,
-    marginTop: 2,
   },
-  trailing: {
-    marginLeft: 12,
+  // Holds the artist line's row height stable when track.artist is null
+  // so the status icons stay below the title line instead of climbing up
+  // and colliding with the duration.
+  artistPlaceholder: {
+    flex: 1,
+    minWidth: 0,
+    height: 18,
   },
 });

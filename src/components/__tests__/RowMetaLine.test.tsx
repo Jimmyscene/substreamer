@@ -130,8 +130,10 @@ describe('RowMetaLine', () => {
       // theme/font-size change broke the assumed footprint.
       expect(ICON_SLOT_WIDTH).toBeGreaterThanOrEqual(20);
       expect(ICON_SLOT_WIDTH).toBeLessThanOrEqual(28);
-      expect(DURATION_SLOT_WIDTH).toBeGreaterThanOrEqual(56);
-      expect(DURATION_SLOT_WIDTH).toBeLessThanOrEqual(80);
+      // Without the clock icon the slot only needs room for the bounded
+      // duration text — wide enough for "23h 59m" / "99:59" at 14px.
+      expect(DURATION_SLOT_WIDTH).toBeGreaterThanOrEqual(40);
+      expect(DURATION_SLOT_WIDTH).toBeLessThanOrEqual(64);
       // Compact `★ N` rating: ~22-32px range.
       expect(RATING_SLOT_WIDTH).toBeGreaterThanOrEqual(22);
       expect(RATING_SLOT_WIDTH).toBeLessThanOrEqual(40);
@@ -184,12 +186,13 @@ describe('RowMetaLine', () => {
       expect(queryByLabelText('star-icon')).toBeNull();
     });
 
-    it('renders the duration text + clock when durationText is provided', () => {
-      const { getByText } = render(
+    it('renders the duration text when durationText is provided (no clock icon)', () => {
+      const { getByText, queryByText } = render(
         <RowMetaLine slots={['duration']} durationText="1h15m" />,
       );
       expect(getByText('1h15m')).toBeTruthy();
-      expect(getByText('time-outline')).toBeTruthy();
+      // Clock icon was dropped to widen the title column on song/track rows.
+      expect(queryByText('time-outline')).toBeNull();
     });
 
     it('renders nothing in the duration slot when durationText is absent', () => {
