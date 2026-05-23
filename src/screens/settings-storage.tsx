@@ -903,6 +903,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     paddingHorizontal: 4,
+    textAlign: 'center',
   },
   retryFailedRow: {
     flexDirection: 'row',
