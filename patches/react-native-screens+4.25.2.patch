@@ -1,8 +1,8 @@
 diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt
-index 65c6e30..3bf4d9d 100644
+index 6fcabc3..aaaf793 100644
 --- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt
 +++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt
-@@ -316,7 +316,8 @@ open class ScreenFragment :
+@@ -318,7 +318,8 @@ open class ScreenFragment :
      override fun onDestroy() {
          super.onDestroy()
          val container = screen.container
@@ -12,7 +12,7 @@ index 65c6e30..3bf4d9d 100644
              // we only send dismissed even when the screen has been removed from its container
              val screenContext = screen.context
              if (screenContext is ReactContext) {
-@@ -325,6 +326,19 @@ open class ScreenFragment :
+@@ -327,6 +328,19 @@ open class ScreenFragment :
                      .getEventDispatcherForReactTag(screenContext, screen.id)
                      ?.dispatchEvent(ScreenDismissedEvent(surfaceId, screen.id))
              }
@@ -33,10 +33,10 @@ index 65c6e30..3bf4d9d 100644
          childScreenContainers.clear()
      }
 diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
-index 34f19a9..ed75355 100644
+index 7aee121..3979b78 100644
 --- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
 +++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
-@@ -461,7 +461,15 @@ class ScreenStackFragment :
+@@ -496,7 +496,15 @@ class ScreenStackFragment :
  
      override fun canNavigateBack(): Boolean {
          val container: ScreenContainer? = screen.container
@@ -54,10 +54,10 @@ index 34f19a9..ed75355 100644
              // this screen is the root of the container, if it is nested we can check parent container
              // if it is also a root or not
 diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
-index 9a9cbf3..6f65a88 100644
+index 8ab37c8..56661f0 100644
 --- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
 +++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
-@@ -188,7 +188,16 @@ class ScreenStackHeaderConfig(
+@@ -214,7 +214,16 @@ class ScreenStackHeaderConfig(
          val stack = screenStack
          val isTop = stack == null || stack.topScreen == parent
  
@@ -76,10 +76,10 @@ index 9a9cbf3..6f65a88 100644
          }
  
 diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
-index 19c44f5..b6989a6 100644
+index 2987072..1df7641 100644
 --- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
 +++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
-@@ -99,6 +99,24 @@ open class ScreenViewManager :
+@@ -95,6 +95,24 @@ open class ScreenViewManager :
          view.onFinalizePropsUpdate()
      }
  
@@ -101,6 +101,6 @@ index 19c44f5..b6989a6 100644
 +        super.onDropViewInstance(view)
 +    }
 +
-     private fun logNotAvailable(propName: String) {
-         Log.w("[RNScreens]", "$propName prop is not available on Android")
-     }
+     fun setActivityState(
+         view: Screen,
+         activityState: Int,
