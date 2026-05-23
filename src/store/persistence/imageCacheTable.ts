@@ -236,6 +236,25 @@ export function getCachedImagesForCoverArt(
 /* ------------------------------------------------------------------ */
 
 /**
+ * Every distinct cover_art_id that has at least one variant cached on
+ * disk. Used by the image-download-queue's "refresh all cached covers"
+ * cycle to enumerate everything currently in the cache for re-download.
+ */
+export function getAllCachedCoverArtIds(): string[] {
+  const db = getDb();
+  if (db === null) return [];
+  try {
+    const rows = db.getAllSync<{ cover_art_id: string }>(
+      `SELECT DISTINCT cover_art_id FROM cached_images
+         ORDER BY cover_art_id ASC;`,
+    );
+    return rows.map((r) => r.cover_art_id);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Every cover_art_id whose row count is < 4. One SQL query replaces the
  * whole-tree disk walk that used to feed `recoverStalledImageDownloadsAsync`.
  */

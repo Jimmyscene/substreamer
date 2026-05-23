@@ -46,12 +46,28 @@ import {
   deleteCachedImageVariant,
   deleteCachedImagesForCoverArt,
   findIncompleteCovers,
+  getAllCachedCoverArtIds,
   hasCachedImage as dbHasCachedImage,
   hydrateImageCacheAggregates,
   listCachedImagesForBrowser,
   upsertCachedImage,
   type CacheBrowserFilter,
 } from '../store/persistence/imageCacheTable';
+import {
+  clearImageQueueByCycle,
+  countImageQueueRowsByCycle,
+  countImageQueueRowsByStatus,
+  enqueueImagesBulk,
+  type ImageDownloadQueueRow,
+  type ImageDownloadQueueScope,
+  markImageDownloading,
+  markImageError,
+  pickNextQueuedImageRow,
+  removeImageFromQueue,
+  resetErrorRowsForCycle,
+  resetStalledImageRows,
+} from '../store/persistence/imageDownloadQueueTable';
+import { kvStorage } from '../store/persistence';
 import { awaitFirstPing } from './connectivityService';
 import { logImageCache } from './imageCacheLogger';
 import {
@@ -1668,4 +1684,384 @@ function hydrateCachedItemsForRecache(): {
     if (typeof id === 'string' && id.length > 0) songCoverArtIds.push(id);
   }
   return { items, songCoverArtIds };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Persistent image-download queue worker                              */
+/*  See plans/2026-05-23-image-cache-queue-rework.md.                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Scalar cycle metadata persisted via kvStorage. The queue rows live in
+ * SQL; only the cycle's denominator (`total`), identity (`cycleId`), and
+ * pause flag survive separately so the UI can show "X / Y" and so the
+ * worker can short-circuit when the user has paused. Phase 3 wraps these
+ * accessors in `imageDownloadQueueStore` for store-friendly consumption.
+ */
+const IMAGE_QUEUE_META_KEY = 'substreamer-image-queue-meta';
+
+interface ImageQueueMeta {
+  cycleId: string | null;
+  cycleScope: ImageDownloadQueueScope | null;
+  cycleTotal: number;
+  isPaused: boolean;
+}
+
+function readImageQueueMeta(): ImageQueueMeta {
+  try {
+    // kvStorage.getItem is sync in our SQLite-backed impl, but the
+    // Zustand StateStorage interface declares it as `string | null |
+    // Promise<...>`. Cast to the sync variant we actually have.
+    const raw = kvStorage.getItem(IMAGE_QUEUE_META_KEY) as string | null;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<ImageQueueMeta>;
+      return {
+        cycleId: typeof parsed.cycleId === 'string' ? parsed.cycleId : null,
+        cycleScope:
+          parsed.cycleScope === 'refresh-downloads' || parsed.cycleScope === 'refresh-all'
+            ? parsed.cycleScope
+            : null,
+        cycleTotal: typeof parsed.cycleTotal === 'number' ? parsed.cycleTotal : 0,
+        isPaused: parsed.isPaused === true,
+      };
+    }
+  } catch {
+    /* fall through to defaults */
+  }
+  return { cycleId: null, cycleScope: null, cycleTotal: 0, isPaused: false };
+}
+
+function writeImageQueueMeta(next: ImageQueueMeta): void {
+  try {
+    kvStorage.setItem(IMAGE_QUEUE_META_KEY, JSON.stringify(next));
+  } catch {
+    /* swallow — meta loss only affects UI display, not correctness */
+  }
+}
+
+export function isImageQueuePaused(): boolean {
+  return readImageQueueMeta().isPaused;
+}
+
+export function getImageQueueCycle(): {
+  cycleId: string | null;
+  cycleScope: ImageDownloadQueueScope | null;
+  cycleTotal: number;
+} {
+  const meta = readImageQueueMeta();
+  return { cycleId: meta.cycleId, cycleScope: meta.cycleScope, cycleTotal: meta.cycleTotal };
+}
+
+/**
+ * Compute the cycle's "X / Y" progress on demand from SQL. Anything not
+ * 'queued' OR 'downloading' counts as "attempted" (errored rows are
+ * attempted-and-failed, not still-in-queue).
+ */
+export function getImageQueueCycleProgress(): {
+  processed: number;
+  total: number;
+  failed: number;
+} {
+  const { cycleId, cycleTotal } = readImageQueueMeta();
+  if (cycleId === null || cycleTotal === 0) {
+    return { processed: 0, total: 0, failed: 0 };
+  }
+  const remainingInQueue = countImageQueueRowsByCycle(cycleId);
+  const errored = countImageQueueRowsByStatus('error');
+  // remainingInQueue includes 'queued' + 'downloading' + 'error'. The
+  // "processed" UI count is total - (queued + downloading) — errored
+  // rows count as attempted. Compute via the SQL we have:
+  //   processed = total - (queued + downloading)
+  //             = total - (remainingInQueue - error_in_this_cycle)
+  // We can compute error_in_this_cycle as a separate count but for now
+  // expose it bluntly: failed = countImageQueueRowsByStatus('error') is
+  // global across cycles; in practice only one cycle runs at a time so
+  // this is accurate.
+  const queuedOrDownloading = remainingInQueue - errored;
+  const processed = Math.max(0, cycleTotal - Math.max(0, queuedOrDownloading));
+  return { processed, total: cycleTotal, failed: errored };
+}
+
+/* ----- Worker ----- */
+
+/**
+ * The currently-running worker promise, or null if no worker is active.
+ * Held so re-entrant callers (and test code) can `await processImageQueue()`
+ * and reliably wait for the drain to finish — matches the test-ergonomic
+ * shape we want without breaking the fire-and-forget call sites.
+ */
+let imageWorkerPromise: Promise<void> | null = null;
+
+/**
+ * Debounced aggregate recalc — replaces the per-image `recalculateFromDb()`
+ * call that historically caused the Settings UI flicker. A 750ms window
+ * with force-flush at cycle end means a 200-image cycle goes from 200
+ * SQL aggregate queries to a handful.
+ */
+let recalcTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleAggregateRecalc(): void {
+  if (recalcTimer !== null) clearTimeout(recalcTimer);
+  recalcTimer = setTimeout(() => {
+    recalcTimer = null;
+    imageCacheStore.getState().recalculateFromDb();
+  }, 750);
+}
+function flushAggregateRecalc(): void {
+  if (recalcTimer !== null) {
+    clearTimeout(recalcTimer);
+    recalcTimer = null;
+  }
+  imageCacheStore.getState().recalculateFromDb();
+}
+
+function connectivityAllowsImageWork(): boolean {
+  if (offlineModeStore.getState().offlineMode) return false;
+  const conn = connectivityStore.getState();
+  if (!conn.isServerReachable || !conn.isInternetReachable) return false;
+  return true;
+}
+
+/**
+ * Test seam — the queue worker calls this rather than `downloadAndCacheImage`
+ * directly so tests can swap it for a deterministic stub. Production code
+ * uses the default (real `downloadAndCacheImage`).
+ */
+let imageDownloader: (coverArtId: string) => Promise<void> = (id) => downloadAndCacheImage(id);
+
+/** Test-only: replace the downloader. Pass undefined to restore default. */
+export function __setImageDownloaderForTest(
+  fn: ((coverArtId: string) => Promise<void>) | undefined,
+): void {
+  imageDownloader = fn ?? ((id) => downloadAndCacheImage(id));
+}
+
+async function tryDownloadCover(coverArtId: string): Promise<boolean> {
+  try {
+    await imageDownloader(coverArtId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function processOneImage(row: ImageDownloadQueueRow): Promise<void> {
+  markImageDownloading(row.coverArtId);
+  // Both scopes are 'refresh-*' so they delete-then-redownload (the
+  // existing refresh semantic). No skip-if-cached pre-check here —
+  // refresh-all WANTS to replace; refresh-downloads WANTS to pick up
+  // the post-Migration-22 canonical IDs.
+  try {
+    await deleteCachedImage(row.coverArtId);
+  } catch {
+    /* per-cover delete failure isn't fatal; download will overwrite */
+  }
+
+  // Retry-once-inline, matching musicCacheService.ts:1104-1105
+  let ok = await tryDownloadCover(row.coverArtId);
+  if (!ok) ok = await tryDownloadCover(row.coverArtId);
+
+  if (ok) {
+    removeImageFromQueue(row.coverArtId);
+    scheduleAggregateRecalc();
+    maybeCompleteCycle();
+  } else {
+    markImageError(row.coverArtId, 'Failed after retry');
+    logImageCache(`image-queue: persisted error for id=${row.coverArtId}`);
+  }
+}
+
+function maybeCompleteCycle(): void {
+  const meta = readImageQueueMeta();
+  if (meta.cycleId === null) return;
+  const remaining = countImageQueueRowsByCycle(meta.cycleId);
+  // Remaining includes errored rows that the user might still retry.
+  // We clear the cycle metadata only when EVERY row is gone (success).
+  if (remaining === 0) {
+    writeImageQueueMeta({ cycleId: null, cycleScope: null, cycleTotal: 0, isPaused: false });
+    flushAggregateRecalc();
+    logImageCache('image-queue: cycle complete');
+  }
+}
+
+async function imageWorkerLoop(): Promise<void> {
+  while (true) {
+    if (readImageQueueMeta().isPaused) return;
+    if (!connectivityAllowsImageWork()) return;
+    const next = pickNextQueuedImageRow();
+    if (!next) return;
+    await processOneImage(next);
+  }
+}
+
+/**
+ * Drain the persistent image-download queue. Spawns up to
+ * `maxConcurrentImageDownloads` parallel workers (same pattern as
+ * `musicCacheService.downloadItem`). Idempotent: a second call while
+ * the worker is running is a no-op.
+ */
+export async function processImageQueue(): Promise<void> {
+  if (imageWorkerPromise !== null) {
+    // Already running — return the same promise so the caller awaits the
+    // existing drain instead of starting a duplicate worker.
+    await imageWorkerPromise;
+    return;
+  }
+  if (readImageQueueMeta().isPaused) return;
+  if (!connectivityAllowsImageWork()) return;
+
+  const promise = (async () => {
+    try {
+      const concurrency = Math.max(1, imageCacheStore.getState().maxConcurrentImageDownloads);
+      const workers = Array.from({ length: concurrency }, () => imageWorkerLoop());
+      await Promise.all(workers);
+    } finally {
+      flushAggregateRecalc();
+    }
+  })();
+  imageWorkerPromise = promise;
+  try {
+    await promise;
+  } finally {
+    imageWorkerPromise = null;
+  }
+}
+
+/**
+ * Reset stalled rows back to 'queued' so they can be re-processed.
+ * Mirrors `recoverStalledDownloadsAsync` (music): 'downloading' rows
+ * (the previous session died mid-fetch) and 'error' rows both get a
+ * fresh shot per session.
+ */
+export async function recoverStalledImageDownloads(): Promise<void> {
+  const reset = resetStalledImageRows();
+  if (reset > 0) {
+    logImageCache(`image-queue: recovered ${reset} stalled row(s) to queued`);
+  }
+}
+
+/**
+ * Pause the queue. The worker exits at the next iteration; in-flight
+ * rows finish but the loop won't start new ones. `isPaused` is persisted,
+ * so kill-while-paused → restart → still paused. Only an explicit
+ * `resumeImageQueue()` clears the flag.
+ */
+export function pauseImageQueue(): void {
+  const meta = readImageQueueMeta();
+  if (meta.isPaused) return;
+  writeImageQueueMeta({ ...meta, isPaused: true });
+  logImageCache('image-queue: paused');
+}
+
+export function resumeImageQueue(): void {
+  const meta = readImageQueueMeta();
+  if (!meta.isPaused) return;
+  writeImageQueueMeta({ ...meta, isPaused: false });
+  logImageCache('image-queue: resumed');
+  void processImageQueue();
+}
+
+/**
+ * Drop the current cycle's queue rows and clear the cycle metadata.
+ * Any row currently in 'downloading' finishes its in-flight fetch (we
+ * don't kill mid-fetch — matches music's `cancelDownload`). The worker
+ * exits naturally when there's nothing left.
+ */
+export function cancelImageRefreshCycle(): void {
+  const meta = readImageQueueMeta();
+  if (meta.cycleId === null) {
+    logImageCache('image-queue: cancel with no active cycle (no-op)');
+    return;
+  }
+  const removed = clearImageQueueByCycle(meta.cycleId);
+  writeImageQueueMeta({ cycleId: null, cycleScope: null, cycleTotal: 0, isPaused: false });
+  flushAggregateRecalc();
+  logImageCache(`image-queue: cancelled cycle ${meta.cycleId}, removed ${removed} row(s)`);
+}
+
+/**
+ * Move all 'error' rows in the active cycle back to 'queued' so the
+ * worker re-tries them. Mirrors music's `retryDownload`.
+ */
+export function retryFailedImages(): void {
+  const meta = readImageQueueMeta();
+  if (meta.cycleId === null) {
+    logImageCache('image-queue: retryFailed with no active cycle (no-op)');
+    return;
+  }
+  const reset = resetErrorRowsForCycle(meta.cycleId);
+  logImageCache(`image-queue: retryFailed reset ${reset} row(s)`);
+  if (reset > 0) void processImageQueue();
+}
+
+/* ----- Cycle starters ----- */
+
+function generateCycleId(): string {
+  // Cheap unique-enough id. Avoid `crypto.randomUUID` because the RN
+  // runtime may lack it.
+  return `cyc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Snapshot every cover-art ID associated with downloaded music
+ * (cached_items albums/playlists + per-song covers from cached_songs).
+ * Returns the deduped list.
+ */
+function snapshotDownloadedCoverArtIds(): string[] {
+  const { items, songCoverArtIds } = hydrateCachedItemsForRecache();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const it of items) {
+    if (!it.coverArtId) continue;
+    if (it.type !== 'album' && it.type !== 'playlist') continue;
+    if (seen.has(it.coverArtId)) continue;
+    seen.add(it.coverArtId);
+    out.push(it.coverArtId);
+  }
+  for (const id of songCoverArtIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function snapshotAllCachedCoverArtIds(): string[] {
+  // Distinct cover_art_ids across cached_images (every cover that has at
+  // least one variant on disk). Already returned distinct + sorted.
+  return getAllCachedCoverArtIds();
+}
+
+/**
+ * Begin a refresh cycle. Snapshots the relevant cover-art IDs, generates
+ * a cycle_id, bulk-inserts the rows, persists cycle metadata, and kicks
+ * the worker. Returns the new cycle_id.
+ *
+ * If a cycle is already active, the call is a no-op and returns its id.
+ */
+export async function enqueueImageRefreshCycle(
+  scope: ImageDownloadQueueScope,
+): Promise<string | null> {
+  const meta = readImageQueueMeta();
+  if (meta.cycleId !== null) {
+    logImageCache(`image-queue: cycle already active id=${meta.cycleId}, skipping new ${scope}`);
+    return meta.cycleId;
+  }
+  const ids = scope === 'refresh-downloads'
+    ? snapshotDownloadedCoverArtIds()
+    : snapshotAllCachedCoverArtIds();
+  if (ids.length === 0) {
+    logImageCache(`image-queue: ${scope} produced 0 ids, nothing to do`);
+    return null;
+  }
+  const cycleId = generateCycleId();
+  const inserted = enqueueImagesBulk(ids, scope, cycleId);
+  writeImageQueueMeta({
+    cycleId,
+    cycleScope: scope,
+    cycleTotal: inserted,
+    isPaused: false,
+  });
+  logImageCache(`image-queue: started cycle ${cycleId} scope=${scope} ids=${inserted}`);
+  void processImageQueue();
+  return cycleId;
 }
