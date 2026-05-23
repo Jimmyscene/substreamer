@@ -29,6 +29,9 @@ jobs:
       - name: Validate Intl helpers
         run: node scripts/validate-intl.js
 
+      - name: Validate ProGuard keep rules
+        run: node scripts/validate-proguard-rules.js
+
       - name: TypeScript compilation check
         run: npx tsc --noEmit
 
