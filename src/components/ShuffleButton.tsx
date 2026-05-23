@@ -1,11 +1,4 @@
-/**
- * ShuffleButton – one-shot shuffle action for the play queue.
- *
- * Renders an Ionicons `shuffle` icon that fires the provided
- * onPress callback.  Visually matches the skip/repeat/rate controls.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet } from 'react-native';

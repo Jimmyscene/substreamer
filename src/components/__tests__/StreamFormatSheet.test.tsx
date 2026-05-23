@@ -45,15 +45,6 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string }) => (
-      <Text testID={`icon-${props.name}`}>{props.name}</Text>
-    ),
-  };
-});
-
 import React from 'react';
 import { Alert, Platform } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';

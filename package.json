@@ -30,7 +30,6 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@expo/vector-icons": "^15.1.1",
     "@formatjs/intl-datetimeformat": "^7.4.1",
     "@formatjs/intl-getcanonicallocales": "^3.2.5",
     "@formatjs/intl-locale": "^5.3.4",
@@ -86,7 +85,10 @@
     "react-native-track-player": "file:./modules/react-native-track-player",
     "react-native-worklets": "^0.8.3",
     "subsonic-api": "file:./modules/subsonic-api",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.13",
+    "@react-native-vector-icons/ionicons": "^13.1.1",
+    "@react-native-vector-icons/material-design-icons": "^13.1.1",
+    "@react-native-vector-icons/fontawesome5": "^13.1.1"
   },
   "devDependencies": {
     "@react-native/jest-preset": "^0.85.3",

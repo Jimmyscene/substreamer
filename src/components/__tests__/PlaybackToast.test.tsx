@@ -36,11 +36,6 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 34, left: 0, right: 0 }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 jest.mock('react-native-reanimated', () => {
   const React = require('react');
   const { View, Text } = require('react-native');

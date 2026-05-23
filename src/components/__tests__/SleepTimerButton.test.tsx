@@ -8,17 +8,6 @@ jest.mock('../../hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string; color: string; size: number }) => (
-      <Text testID={`icon-${props.name}`} style={{ color: props.color }}>
-        {props.name}
-      </Text>
-    ),
-  };
-});
-
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 

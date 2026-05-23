@@ -1,13 +1,4 @@
-/**
- * Persistent download progress banner rendered above the MiniPlayer.
- *
- * Visible when there are items queued or downloading. Shows the
- * currently active item's name and track-count progress with a
- * slim progress bar. Tapping navigates to the download queue screen.
- * Animates in/out with a height + opacity transition.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

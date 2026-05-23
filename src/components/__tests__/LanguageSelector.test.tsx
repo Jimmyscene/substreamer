@@ -15,11 +15,6 @@ jest.mock('../../hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 const mockChangeLanguage = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('../../i18n', () => ({

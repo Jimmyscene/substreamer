@@ -17,11 +17,6 @@ jest.mock('../../hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 // Must import after mocks
 const { OnboardingGuide } = require('../OnboardingGuide');
 

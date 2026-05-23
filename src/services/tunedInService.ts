@@ -1,5 +1,5 @@
-import { type Ionicons } from '@expo/vector-icons';
 import i18n from '../i18n/i18n';
+import type { IoniconsName } from '../utils/iconNames';
 
 import {
   getRandomSongs,
@@ -29,7 +29,7 @@ export interface MixDefinition {
   id: string;
   name: string;
   subtitle: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
   gradientColors: [string, string];
   fetchStrategy: FetchStrategy;
 }
@@ -512,7 +512,7 @@ export async function fetchCustomMix(
 /*  Visual helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-export function getTimeIcon(hour: number): keyof typeof Ionicons.glyphMap {
+export function getTimeIcon(hour: number): IoniconsName {
   if (hour >= 5 && hour < 8) return 'sunny-outline';
   if (hour >= 8 && hour < 17) return 'sunny';
   if (hour >= 17 && hour < 20) return 'partly-sunny-outline';

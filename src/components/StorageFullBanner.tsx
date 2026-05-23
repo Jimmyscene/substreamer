@@ -1,12 +1,4 @@
-/**
- * Animated pill banner shown when the storage limit is reached.
- *
- * Styled identically to PlaybackToast — a dark capsule that springs
- * into view below the header.  Tapping it navigates to the Storage &
- * Data settings screen.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

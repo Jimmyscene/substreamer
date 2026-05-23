@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -16,6 +16,7 @@ import { handleSslCertPrompt } from '../services/connectivityService';
 import { connectivityStore, type BannerState } from '../store/connectivityStore';
 import { offlineModeStore } from '../store/offlineModeStore';
 
+import type { IoniconsName } from '../utils/iconNames';
 const CAPSULE_HEIGHT = 44;
 const CAPSULE_BORDER_RADIUS = CAPSULE_HEIGHT / 2;
 export const BANNER_HEIGHT = CAPSULE_HEIGHT + 8;
@@ -34,7 +35,7 @@ const ERROR_RED = '#FF453A';
 
 interface ContentConfig {
   iconColor: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
   messageKey: string;
 }
 

@@ -1,13 +1,5 @@
 jest.mock('../../store/persistence/kvStorage', () => require('../../store/persistence/__mocks__/kvStorage'));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string }) => <Text>{props.name}</Text>,
-    MaterialCommunityIcons: (props: { name: string }) => <Text>{props.name}</Text>,
-  };
-});
-
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 

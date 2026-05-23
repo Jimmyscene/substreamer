@@ -1,17 +1,4 @@
-/**
- * Animated pill banner shown when SQLite failed to open at startup. Indicates
- * that writes via Zustand `persist` middleware (auth, settings, preferences,
- * etc.) are landing in the in-memory `kvFallback` Map and won't survive a
- * relaunch. Styled identically to StorageFullBanner — a dark capsule below
- * the header.
- *
- * `isDbHealthy()` reflects the live SQLite handle in `persistence/db.ts`. In
- * production the handle is opened once at module load and never reassigned,
- * so this stays effectively constant for the JS bundle's lifetime — the
- * banner reads it directly without subscribing to a store.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';

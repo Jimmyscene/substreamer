@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { Directory, File, Paths } from 'expo-file-system';
 import { HeaderHeightContext } from "expo-router/react-navigation";
 import { useRouter } from 'expo-router';

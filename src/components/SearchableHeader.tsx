@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 // SDK 56 codemod gap: `expo-router/js-tabs` (the public entry) doesn't
 // re-export BottomTabHeaderProps. Use the deeper path until upstream
 // surfaces it at js-tabs.

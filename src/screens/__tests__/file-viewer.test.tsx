@@ -10,18 +10,6 @@ jest.mock('../../hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text, Pressable } = require('react-native');
-  return {
-    Ionicons: (props: { name: string; onPress?: () => void }) =>
-      props.onPress ? (
-        <Pressable onPress={props.onPress}><Text>{props.name}</Text></Pressable>
-      ) : (
-        <Text>{props.name}</Text>
-      ),
-  };
-});
-
 jest.mock('expo-router', () => {
   const React = require('react');
   return {

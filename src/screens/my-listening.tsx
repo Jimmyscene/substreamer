@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { HeaderHeightContext } from "expo-router/react-navigation";
 import i18next from 'i18next';
 import { useCallback, useContext, useMemo, useState } from 'react';

@@ -33,14 +33,6 @@ jest.mock('../../services/moreOptionsService', () => ({
   toggleStar: jest.fn(),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string }) => <Text>{props.name}</Text>,
-    MaterialCommunityIcons: (props: { name: string }) => <Text>{props.name}</Text>,
-  };
-});
-
 jest.mock('../CachedImage', () => {
   const { View } = require('react-native');
   return { CachedImage: () => <View /> };

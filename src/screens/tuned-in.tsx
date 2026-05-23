@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { LinearGradient } from 'expo-linear-gradient';
 import { HeaderHeightContext } from "expo-router/react-navigation";
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';

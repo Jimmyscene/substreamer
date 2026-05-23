@@ -1,17 +1,4 @@
-/**
- * Pill banner shown while the album-detail walk is running or paused.
- * Matches the visual language of `ConnectivityBanner` and `StorageFullBanner`
- * — same dark capsule, same spring-in / shrink-out animation.
- *
- * Dismiss button hides the banner for the current session; it returns on the
- * next app launch if the walk is still active.
- *
- * Priority is handled by `BannerStack` — this component renders its capsule
- * whenever it should be visible. BannerStack takes care of never stacking
- * more than one pill at a time.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +14,7 @@ import Animated, {
 
 import { syncStatusStore, type DetailSyncPhase } from '../store/syncStatusStore';
 
+import type { IoniconsName } from '../utils/iconNames';
 const CAPSULE_HEIGHT = 44;
 const CAPSULE_BORDER_RADIUS = CAPSULE_HEIGHT / 2;
 export const BANNER_HEIGHT = CAPSULE_HEIGHT + 8;
@@ -46,7 +34,7 @@ const ERROR_RED = '#FF453A';
 const MIN_TOTAL_TO_SHOW = 50;
 
 interface Variant {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
   iconColor: string;
   label: string;
   tappable: boolean;

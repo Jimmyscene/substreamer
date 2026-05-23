@@ -1,16 +1,5 @@
-/**
- * MoreOptionsSheet – unified bottom sheet for all entity types.
- *
- * Reads from `moreOptionsStore` and renders entity-specific options:
- *   - Song/Track: Favorite, Add to Playlist, Play More Like This, Add to Queue, Go to Album, Go to Artist, Track Details
- *   - Album: Favorite, Add to Queue, Go to Artist, Album Details
- *   - Artist: Favorite, Save Top Songs Playlist, Play Similar Artists
- *   - Playlist: Add to Queue
- *
- * Rendered once at the root layout level.
- */
-
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
+import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons/static";
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {

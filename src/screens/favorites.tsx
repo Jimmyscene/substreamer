@@ -1,7 +1,7 @@
 import { useIsFocused } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { useTranslation } from 'react-i18next';
 
 import { AlbumListView } from '../components/AlbumListView';

@@ -1,12 +1,4 @@
-/**
- * MiniPlayer – sits above the tab bar and displays the currently
- * playing track with cover art, title/artist, and a play/pause button.
- *
- * The background is a horizontal gradient from the extracted cover
- * art colour (left) to the theme background (right).
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';

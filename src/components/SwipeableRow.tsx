@@ -1,21 +1,5 @@
-/**
- * SwipeableRow – drop-in swipeable row built on ReanimatedSwipeable.
- *
- * Reveals action buttons behind the row when the user swipes left or right.
- * Each action appears as a colored circular disc with a white icon and label,
- * matching the iOS Mail style.
- *
- * Supports an optional "full swipe" mode (like Apple Mail) where swiping past
- * a threshold automatically triggers the outermost action without requiring a tap.
- * For swipe-right this is the first action (index 0, left edge); for swipe-left
- * this is the last action (rightmost, screen edge).
- *
- * - Swipe physics, snap-back, and alignment handled by the library
- * - Long press and tap handled via a Pressable wrapper
- * - Module-level `closeOpenRow()` export for scroll-to-close behaviour
- */
-
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
+import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons/static";
 import * as Haptics from '@/utils/haptics';
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { Animated as RNAnimated, Pressable, StyleSheet, View } from 'react-native';
@@ -38,6 +22,7 @@ const PRESS_OPACITY = 0.7;
 import { useTheme } from '../hooks/useTheme';
 
 import { absoluteFill } from '../utils/styles';
+import type { IoniconsName, MaterialCommunityIconsName } from '../utils/iconNames';
 /* ------------------------------------------------------------------ */
 /*  Module-level: active row tracking                                  */
 /* ------------------------------------------------------------------ */
@@ -65,7 +50,7 @@ export function closeOpenRow() {
 /* ------------------------------------------------------------------ */
 
 export interface SwipeAction {
-  icon: keyof typeof Ionicons.glyphMap | keyof typeof MaterialCommunityIcons.glyphMap;
+  icon: IoniconsName | MaterialCommunityIconsName;
   /** Icon library to use. Defaults to `'ionicons'`. */
   iconFamily?: 'ionicons' | 'mdi';
   color: string;
@@ -517,9 +502,9 @@ const ActionButton = memo(function ActionButton({
         style={[styles.iconDisc, { backgroundColor: action.color }, discStyle]}
       >
         {action.iconFamily === 'mdi' ? (
-          <MaterialCommunityIcons name={action.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={ICON_SIZE} color="#fff" />
+          <MaterialCommunityIcons name={action.icon as MaterialCommunityIconsName} size={ICON_SIZE} color="#fff" />
         ) : (
-          <Ionicons name={action.icon as keyof typeof Ionicons.glyphMap} size={ICON_SIZE} color="#fff" />
+          <Ionicons name={action.icon as IoniconsName} size={ICON_SIZE} color="#fff" />
         )}
       </Animated.View>
       {action.label != null && (

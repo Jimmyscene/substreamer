@@ -1,12 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useEffect } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from 'react-native-reanimated';
 
 import { type ThemeColors } from '../constants/theme';
 
+import type { IoniconsName } from '../utils/iconNames';
 interface StatCardProps {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
   value: string;
   label: string;
   colors: ThemeColors;

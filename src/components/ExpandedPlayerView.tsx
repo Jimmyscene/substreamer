@@ -1,14 +1,5 @@
-/**
- * ExpandedPlayerView — full-screen immersive player for tablet landscape.
- *
- * Apple Music iPad-inspired layout:
- * - Left column (~45%): large cover art, track info, progress bar, transport controls
- * - Right column (~55%): queue list or lyrics placeholder with toggle
- * - Extracted-color gradient background
- * - Animated entrance/exit driven by `expandProgress` (0 = hidden, 1 = fully expanded)
- */
-
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
+import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons/static";
 import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
@@ -581,7 +572,7 @@ export function ExpandedPlayerView({
                 </>
               ) : rightPanelMode === 'info' ? (
                 /* Album info panel — always shows track metadata; enriched with API data when available */
-                <AlbumInfoContent
+                (<AlbumInfoContent
                   track={currentTrack}
                   albumInfo={albumInfoEntry?.albumInfo ?? null}
                   overrideMbid={albumInfoEntry?.overrideMbid ?? null}
@@ -593,10 +584,10 @@ export function ExpandedPlayerView({
                   refreshing={albumInfoRefreshing}
                   onRefresh={handleRefreshAlbumInfo}
                   colors={colors}
-                />
+                />)
               ) : (
                 /* Lyrics panel */
-                <View style={styles.lyricsContainer}>
+                (<View style={styles.lyricsContainer}>
                   <LyricsContent
                     key={trackId ?? 'no-track'}
                     trackId={trackId ?? undefined}
@@ -607,7 +598,7 @@ export function ExpandedPlayerView({
                     durationSec={currentTrack?.duration ?? null}
                     colors={colors}
                   />
-                </View>
+                </View>)
               )}
 
               {/* Bottom toggle: queue / info / lyrics — ordering matches the

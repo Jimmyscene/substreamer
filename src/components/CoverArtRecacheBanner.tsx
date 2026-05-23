@@ -1,13 +1,4 @@
-/**
- * Persistent banner shown while the post-Migration-22 cover-art recache
- * pass is running. Modelled on `DownloadBanner` so it stacks naturally
- * with the other top-of-tabs banners.
- *
- * Visible only when `coverArtRecacheStore.status === 'running'`.
- * Non-interactive — the manual entry point lives in Settings → Storage.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';

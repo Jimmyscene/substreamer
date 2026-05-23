@@ -92,7 +92,10 @@
       "expo-notifications",
       "expo-sharing",
       "expo-localization",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-vector-icons/ionicons",
+      "@react-native-vector-icons/material-design-icons",
+      "@react-native-vector-icons/fontawesome5"
     ],
     "extra": {
       "router": {},

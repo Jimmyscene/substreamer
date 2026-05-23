@@ -10,11 +10,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 jest.mock('react-native-reanimated', () => {
   const { View, Text } = require('react-native');
   return {

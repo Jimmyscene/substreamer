@@ -1,11 +1,4 @@
-/**
- * PlayerPanel — compact sidebar player for tablet wide layout.
- *
- * Shows cover art, track info, playback controls, progress bar, and
- * the play queue in a vertical layout sized for a ~1/3 screen panel.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { FlashList } from '@shopify/flash-list';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

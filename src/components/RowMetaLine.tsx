@@ -1,34 +1,4 @@
-/**
- * Shared trailing-metadata layout used by every list-row component.
- *
- * Each row in a list shares the same set of fixed-width slots so that
- * indicators (rating, downloaded, heart, duration) sit in a consistent
- * column position regardless of which neighbours are present on a given
- * row. Without this, variable-width content (e.g. `formatCompactDuration`
- * returning "10m" or "1h15m") drags the icons to its left around as the
- * user scrolls.
- *
- * Two layout shapes are supported:
- *
- *   1. **Sub-line meta** (AlbumRow, PlaylistRow, SongRow, ArtistRow) —
- *      pass `leading` to fill the flex:1 slot at the start of the line
- *      (e.g. `<icon> {trackCount}`). The trailing slots are pushed to
- *      the right edge of the row.
- *
- *   2. **Row-level trailing block** (TrackRow, QueueItemRow) — omit
- *      `leading`. The component renders only the trailing slots and
- *      sizes to its own children; the caller is responsible for placing
- *      it next to a flex:1 sibling that holds title/artist text.
- *
- * Slots are reserved per row TYPE (the `slots` prop): if a row type
- * doesn't show downloaded/rating/etc., omit that slot key and no width
- * is reserved. If a row of that type happens not to have a value for
- * the slot, the slot still occupies its width — that's the alignment
- * guarantee. Rule of thumb: slot widths are sized against the worst
- * case for that row type within a single list.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 

@@ -1,14 +1,4 @@
-/**
- * Shared TrackRow component used by album-detail and playlist-detail screens.
- *
- * Displays a single track with an optional track number, title, optional artist
- * subtitle, starred indicator, user rating, and duration.
- *
- * Supports swipe-right to add to queue, swipe-left to toggle favorite,
- * and long-press to open the more options sheet.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';

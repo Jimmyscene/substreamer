@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import * as Clipboard from 'expo-clipboard';
 import { HeaderHeightContext } from "expo-router/react-navigation";
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';

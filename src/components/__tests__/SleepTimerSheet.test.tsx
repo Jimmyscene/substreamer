@@ -41,15 +41,6 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string; color: string; size: number }) => (
-      <Text testID={`icon-${props.name}`}>{props.name}</Text>
-    ),
-  };
-});
-
 jest.mock('react-native-track-player', () => ({
   __esModule: true,
   default: {

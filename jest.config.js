@@ -19,6 +19,9 @@ module.exports = {
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
         '^.+/i18n/i18n$': '<rootDir>/src/test-utils/i18nMock.ts',
+        // SDK 56 vector-icons migration: redirect every
+        // `@react-native-vector-icons/*/static` import to the shared stub.
+        '^@react-native-vector-icons/.+/static$': '<rootDir>/src/test-utils/iconMock.tsx',
       },
       setupFiles: ['<rootDir>/src/test-utils/i18nSetup.ts'],
     },
@@ -32,6 +35,9 @@ module.exports = {
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
         '^.+/i18n/i18n$': '<rootDir>/src/test-utils/i18nMock.ts',
+        // SDK 56 vector-icons migration: redirect every
+        // `@react-native-vector-icons/*/static` import to the shared stub.
+        '^@react-native-vector-icons/.+/static$': '<rootDir>/src/test-utils/iconMock.tsx',
       },
       setupFiles: ['<rootDir>/src/test-utils/i18nSetup.ts'],
     },

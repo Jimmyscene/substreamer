@@ -1,14 +1,4 @@
-/**
- * Self-contained download button for album/playlist detail headers.
- *
- * Subscribes directly to musicCacheStore and useDownloadStatus so it
- * manages its own re-renders. This avoids the parent screen needing
- * to pass progress via navigation.setOptions — which previously
- * remounted the CircularProgress on every update, losing animation
- * state and causing jumps.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 

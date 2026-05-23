@@ -1,13 +1,5 @@
-/**
- * AlbumInfoContent — shared album info panel used by both the phone player
- * and tablet expanded player views.
- *
- * Displays: format badge, quick stats (year, play count, BPM), genre pills,
- * credits rows, album description with expand/collapse, skeleton loading
- * state, and external links (Last.fm, MusicBrainz, Wikipedia).
- */
-
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
+import FontAwesome5 from "@react-native-vector-icons/fontawesome5/static";
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Linking,
@@ -196,7 +188,7 @@ export const AlbumInfoContent = memo(function AlbumInfoContent({
         </View>
       ) : (albumInfoLoading || refreshing) ? (
         /* Skeleton placeholder — mirrors the real layout */
-        (() => {
+        ((() => {
           // Theme-aware skeleton fill: derives from `textSecondary` so light
           // mode gets a dark-gray bar (visible on white) and dark mode gets
           // a light-gray bar (visible on black). The hardcoded white-alpha
@@ -239,7 +231,7 @@ export const AlbumInfoContent = memo(function AlbumInfoContent({
               </View>
             </View>
           );
-        })()
+        })())
       ) : (
         <>
           {/* ── Hero header block (centered) ── */}
@@ -345,7 +337,6 @@ export const AlbumInfoContent = memo(function AlbumInfoContent({
           ) : null}
         </>
       )}
-
       {/* ── External links (centered) ── */}
       {(albumInfo?.lastFmUrl || overrideMbid || albumInfo?.musicBrainzId || notesAttributionUrl) && (
         <View>
@@ -358,7 +349,7 @@ export const AlbumInfoContent = memo(function AlbumInfoContent({
               accessibilityLabel={t('viewOnLastFm')}
               style={({ pressed }) => [styles.infoLinkChip, { borderColor: hexWithAlpha(colors.border, 0.5) }, pressed && styles.pressed]}
             >
-              <FontAwesome5 name="lastfm" size={14} color={colors.textPrimary} />
+              <FontAwesome5 name="lastfm" iconStyle="brand" size={14} color={colors.textPrimary} />
               <Text style={[styles.infoLinkText, { color: colors.textPrimary }]}>Last.fm</Text>
               <Ionicons name="open-outline" size={12} color={colors.textPrimary} style={styles.infoLinkArrow} />
             </Pressable>
@@ -382,7 +373,7 @@ export const AlbumInfoContent = memo(function AlbumInfoContent({
               accessibilityLabel={t('viewOnWikipedia')}
               style={({ pressed }) => [styles.infoLinkChip, { borderColor: hexWithAlpha(colors.border, 0.5) }, pressed && styles.pressed]}
             >
-              <FontAwesome5 name="wikipedia-w" size={14} color={colors.textPrimary} />
+              <FontAwesome5 name="wikipedia-w" iconStyle="brand" size={14} color={colors.textPrimary} />
               <Text style={[styles.infoLinkText, { color: colors.textPrimary }]}>Wikipedia</Text>
               <Ionicons name="open-outline" size={12} color={colors.textPrimary} style={styles.infoLinkArrow} />
             </Pressable>

@@ -1,13 +1,4 @@
-/**
- * PlayerView – full-screen "Now Playing" view.
- *
- * Slides up from the MiniPlayer and displays hero cover art with a
- * gradient background extracted from the artwork, playback controls,
- * a seekable progress bar, and tabbed access to queue, album info,
- * and lyrics.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { FlashList } from '@shopify/flash-list';
 import { Stack, useNavigation, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';

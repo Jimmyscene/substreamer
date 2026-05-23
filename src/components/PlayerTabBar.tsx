@@ -1,11 +1,5 @@
-/**
- * PlayerTabBar — bottom icon bar for the phone portrait player view.
- *
- * Four tabs: Player (now playing), Queue, Album Info, Lyrics.
- * Active tab highlighted in theme primary color.
- */
-
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
+import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons/static";
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';

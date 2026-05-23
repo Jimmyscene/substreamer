@@ -1,12 +1,4 @@
-/**
- * RepeatButton – three-state toggle for repeat mode.
- *
- * Cycles through: off → repeat all → repeat one → off.
- * Uses textPrimary when off, and the primary accent colour when
- * active.  A small "1" badge distinguishes repeat-one from repeat-all.
- */
-
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';

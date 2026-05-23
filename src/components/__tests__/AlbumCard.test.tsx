@@ -30,11 +30,6 @@ jest.mock('../../services/musicCacheService', () => ({
   getTrackQueueStatus: jest.fn(() => null),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 jest.mock('../CachedImage', () => {
   const { View } = require('react-native');
   return { CachedImage: () => <View /> };

@@ -38,11 +38,6 @@ jest.mock('../../hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return { Ionicons: (props: { name: string }) => <Text>{props.name}</Text> };
-});
-
 jest.mock('../CircularProgress', () => {
   const { Text } = require('react-native');
   return { CircularProgress: () => <Text>CircularProgress</Text> };

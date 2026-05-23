@@ -13,15 +13,6 @@ jest.mock('react-native-svg', () => {
   return { __esModule: true, default: View, Path: View };
 });
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string }) => <Text>{props.name}</Text>,
-    MaterialCommunityIcons: (props: { name: string }) => <Text>{props.name}</Text>,
-    FontAwesome5: (props: { name: string }) => <Text>{props.name}</Text>,
-  };
-});
-
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import { Linking } from 'react-native';

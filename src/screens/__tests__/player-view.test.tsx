@@ -40,14 +40,6 @@ jest.mock('../../hooks/useThemedAlert', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string }) => <Text>{props.name}</Text>,
-    MaterialCommunityIcons: (props: { name: string }) => <Text>{props.name}</Text>,
-  };
-});
-
 jest.mock('expo-router', () => ({
   Stack: {
     Toolbar: Object.assign(

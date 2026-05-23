@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,6 +12,7 @@ import { searchStore } from '../store/searchStore';
 import { processingOverlayStore } from '../store/processingOverlayStore';
 import { selectionAsync, notificationAsync } from '../utils/haptics';
 
+import type { IoniconsName } from '../utils/iconNames';
 const APP_VERSION = Constants.expoConfig?.version ?? '?';
 const BUILD_NUMBER =
   Platform.OS === 'ios'
@@ -23,7 +24,7 @@ const SETTINGS_LINKS: {
   route: string;
   labelKey: string;
   subtitleKey: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
 }[] = [
   { route: '/settings-server', labelKey: 'serverAccount', subtitleKey: 'serverAccountSubtitle', icon: 'server-outline' },
   { route: '/settings-appearance', labelKey: 'appearanceLayout', subtitleKey: 'appearanceLayoutSubtitle', icon: 'color-palette-outline' },

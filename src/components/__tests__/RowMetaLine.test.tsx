@@ -34,15 +34,6 @@ jest.mock('../StarRating', () => {
   };
 });
 
-jest.mock('@expo/vector-icons', () => {
-  const { Text } = require('react-native');
-  return {
-    Ionicons: (props: { name: string; accessibilityLabel?: string }) => (
-      <Text accessibilityLabel={props.accessibilityLabel}>{props.name}</Text>
-    ),
-  };
-});
-
 jest.mock('../../hooks/useTheme', () => ({
   useTheme: () => ({
     colors: {

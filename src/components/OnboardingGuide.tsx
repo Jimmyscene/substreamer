@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -15,12 +15,13 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { onboardingStore } from '../store/onboardingStore';
 
+import type { IoniconsName } from '../utils/iconNames';
 /* ------------------------------------------------------------------ */
 /*  Slide data                                                         */
 /* ------------------------------------------------------------------ */
 
 interface Slide {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IoniconsName;
   headlineKey: string;
   bodyKey: string;
 }

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from "@react-native-vector-icons/ionicons/static";
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useMemo, useState } from 'react';
 import {
