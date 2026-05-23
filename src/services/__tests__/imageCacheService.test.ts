@@ -144,12 +144,17 @@ jest.mock('../connectivityService', () => ({
   awaitFirstPing: () => mockAwaitFirstPing(),
 }));
 
-// `triggerCoverArtRecache` lazy-requires `hydrateCachedItems` to read the
-// downloaded album/playlist set. Mocked so the recache suite can control
-// what the worker sees without dragging in the music-cache table module.
+// `triggerCoverArtRecache` lazy-requires `hydrateCachedItems` AND
+// `hydrateCachedSongs` to read the downloaded album/playlist set plus
+// per-song cover art (needed for songs inside downloaded playlists
+// whose source albums weren't downloaded). Mocked so the recache suite
+// can control what the worker sees without dragging in the music-cache
+// table module.
 const mockHydrateCachedItemsForRecache = jest.fn<Record<string, any>, []>(() => ({}));
+const mockHydrateCachedSongsForRecache = jest.fn<Record<string, any>, []>(() => ({}));
 jest.mock('../../store/persistence/musicCacheTables', () => ({
   hydrateCachedItems: () => mockHydrateCachedItemsForRecache(),
+  hydrateCachedSongs: () => mockHydrateCachedSongsForRecache(),
 }));
 
 /**
@@ -1897,10 +1902,13 @@ describe('triggerCoverArtRecache', () => {
       failed: 0,
       lastRunAt: null,
       lastTrigger: null,
+      coversSongs: false,
     });
     setConnectivity({ offlineMode: false, isInternetReachable: true, isServerReachable: true });
     mockHydrateCachedItemsForRecache.mockReset();
     mockHydrateCachedItemsForRecache.mockReturnValue({});
+    mockHydrateCachedSongsForRecache.mockReset();
+    mockHydrateCachedSongsForRecache.mockReturnValue({});
     refreshSpy.mockClear();
     refreshSpy.mockResolvedValue(undefined);
     // Make every fetch succeed cheaply — `refreshCachedImage` ends up calling
@@ -1923,8 +1931,8 @@ describe('triggerCoverArtRecache', () => {
     expect(s.total).toBe(0);
   });
 
-  it('auto trigger is suppressed once status is done', async () => {
-    coverArtRecacheStore.setState({ status: 'done' });
+  it('auto trigger is suppressed once status is done AND songs were covered', async () => {
+    coverArtRecacheStore.setState({ status: 'done', coversSongs: true });
     mockHydrateCachedItemsForRecache.mockReturnValue({
       'a-1': { type: 'album', coverArtId: 'cov-1' },
     });
@@ -1934,6 +1942,26 @@ describe('triggerCoverArtRecache', () => {
     // Status stays done; total never set.
     expect(coverArtRecacheStore.getState().status).toBe('done');
     expect(coverArtRecacheStore.getState().total).toBe(0);
+  });
+
+  it('auto trigger re-runs when a previous completion did NOT cover per-song art', async () => {
+    // Legacy persisted state: status=done but coversSongs is undefined/false.
+    // Users who completed on the old scope need a fresh pass to pick up
+    // per-song covers inside downloaded playlists.
+    coverArtRecacheStore.setState({ status: 'done', coversSongs: false });
+    mockHydrateCachedItemsForRecache.mockReturnValue({
+      'pl-1': { type: 'playlist', coverArtId: 'cov-playlist' },
+    });
+    mockHydrateCachedSongsForRecache.mockReturnValue({
+      's-1': { coverArt: 'cov-song-from-other-album' },
+    });
+
+    await triggerCoverArtRecache('auto');
+
+    const s = coverArtRecacheStore.getState();
+    expect(s.total).toBe(2);
+    expect(s.processed).toBe(2);
+    expect(s.coversSongs).toBe(true); // marked on completion
   });
 
   it('manual trigger ignores the done gate', async () => {
@@ -1950,11 +1978,11 @@ describe('triggerCoverArtRecache', () => {
     expect(s.status).toBe('done');
   });
 
-  it('walks albums and playlists, skips song-type items', async () => {
+  it('walks albums and playlists, skips other cached_items types', async () => {
     mockHydrateCachedItemsForRecache.mockReturnValue({
       'a-1': { type: 'album', coverArtId: 'cov-album' },
       'pl-1': { type: 'playlist', coverArtId: 'cov-playlist' },
-      'song:s-1': { type: 'song', coverArtId: 'cov-song' },
+      'favorites:virtual': { type: 'favorites', coverArtId: 'cov-favorites' },
     });
 
     await triggerCoverArtRecache('auto');
@@ -1962,6 +1990,43 @@ describe('triggerCoverArtRecache', () => {
     const s = coverArtRecacheStore.getState();
     expect(s.total).toBe(2);
     expect(s.processed).toBe(2);
+  });
+
+  it('also walks per-song cover art from cached_songs (covers playlist songs whose source albums were not downloaded)', async () => {
+    mockHydrateCachedItemsForRecache.mockReturnValue({
+      'pl-1': { type: 'playlist', coverArtId: 'cov-playlist' },
+    });
+    // Three songs in the downloaded playlist, from three different
+    // (non-downloaded) albums — each with its own cover art ID.
+    mockHydrateCachedSongsForRecache.mockReturnValue({
+      's-1': { coverArt: 'cov-song-album-1' },
+      's-2': { coverArt: 'cov-song-album-2' },
+      's-3': { coverArt: 'cov-song-album-3' },
+    });
+
+    await triggerCoverArtRecache('auto');
+
+    const s = coverArtRecacheStore.getState();
+    expect(s.total).toBe(4); // playlist + 3 distinct song-album covers
+    expect(s.processed).toBe(4);
+  });
+
+  it('dedupes song-level cover art against album cover art (song from a downloaded album)', async () => {
+    mockHydrateCachedItemsForRecache.mockReturnValue({
+      'a-1': { type: 'album', coverArtId: 'cov-shared' },
+    });
+    // Three songs from the same downloaded album — they all carry the
+    // album's cover art ID. Should NOT be counted again on top of the
+    // album row.
+    mockHydrateCachedSongsForRecache.mockReturnValue({
+      's-1': { coverArt: 'cov-shared' },
+      's-2': { coverArt: 'cov-shared' },
+      's-3': { coverArt: 'cov-shared' },
+    });
+
+    await triggerCoverArtRecache('auto');
+
+    expect(coverArtRecacheStore.getState().total).toBe(1);
   });
 
   it('deduplicates by coverArtId', async () => {
@@ -1974,6 +2039,21 @@ describe('triggerCoverArtRecache', () => {
     await triggerCoverArtRecache('auto');
 
     expect(coverArtRecacheStore.getState().total).toBe(1);
+  });
+
+  it('ignores songs with null/empty cover art', async () => {
+    mockHydrateCachedItemsForRecache.mockReturnValue({
+      'pl-1': { type: 'playlist', coverArtId: 'cov-playlist' },
+    });
+    mockHydrateCachedSongsForRecache.mockReturnValue({
+      's-1': { coverArt: null },
+      's-2': { coverArt: '' },
+      's-3': { coverArt: 'cov-real' },
+    });
+
+    await triggerCoverArtRecache('auto');
+
+    expect(coverArtRecacheStore.getState().total).toBe(2); // playlist + cov-real only
   });
 
   it('bails out cleanly in offline mode', async () => {

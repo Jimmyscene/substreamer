@@ -1524,7 +1524,13 @@ export async function triggerCoverArtRecache(
   if (recacheActive) return;
 
   const initialState = coverArtRecacheStore.getState();
-  if (reason === 'auto' && initialState.status === 'done') return;
+  // Auto-trigger skips only when a completion ALREADY covered per-song
+  // covers. Users who completed on the old scope (album/playlist rows
+  // only) are re-run automatically so songs inside downloaded playlists
+  // get their per-track covers refreshed.
+  if (reason === 'auto' && initialState.status === 'done' && initialState.coversSongs === true) {
+    return;
+  }
 
   // Gate: need at least an internet-reachable signal. The worker itself
   // handles per-fetch failures gracefully, so being online matters only
@@ -1533,10 +1539,20 @@ export async function triggerCoverArtRecache(
   if (!conn.isInternetReachable && !conn.isServerReachable) return;
   if (offlineModeStore.getState().offlineMode) return;
 
-  // Snapshot the downloaded items we need to refresh.
+  // Snapshot the downloaded items we need to refresh. We walk THREE
+  // sources and dedup against a single `seen` set:
+  //   1. cached_items rows — album/playlist-level cover art
+  //   2. cached_songs rows — per-song cover art (which is typically the
+  //      album-art ID of the song's source album). This is the load-
+  //      bearing case for songs inside DOWNLOADED PLAYLISTS, where the
+  //      source album wasn't downloaded so its album-art ID never
+  //      appears in cached_items but the song's coverArt still needs
+  //      a refresh under the canonical ID format.
+  //   3. (skipped) other cached_items types like 'favorites' — they
+  //      either have no cover art or share one we already covered.
   let coverIds: string[] = [];
   try {
-    const items = hydrateCachedItemsForRecache();
+    const { items, songCoverArtIds } = hydrateCachedItemsForRecache();
     const seen = new Set<string>();
     for (const it of items) {
       if (!it.coverArtId) continue;
@@ -1544,6 +1560,11 @@ export async function triggerCoverArtRecache(
       if (seen.has(it.coverArtId)) continue;
       seen.add(it.coverArtId);
       coverIds.push(it.coverArtId);
+    }
+    for (const id of songCoverArtIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      coverIds.push(id);
     }
   } catch (e) {
     logImageCache(`recache: snapshot threw ${e instanceof Error ? e.message : String(e)}`);
@@ -1619,17 +1640,32 @@ export function pauseCoverArtRecache(): void {
  * recache pass. Broken out so it can be mocked in unit tests without
  * dragging in the entire `musicCacheTables` import surface.
  */
-function hydrateCachedItemsForRecache(): Array<{
-  type: string;
-  coverArtId: string | null;
-}> {
+function hydrateCachedItemsForRecache(): {
+  items: Array<{ type: string; coverArtId: string | null }>;
+  /**
+   * Per-song cover-art IDs from `cached_songs`. Needed because songs
+   * inside downloaded playlists carry cover-art IDs that don't appear
+   * anywhere in `cached_items` (the playlist row has its own curated
+   * cover; the source albums weren't downloaded). Without this list
+   * the recache pass leaves every track row in a downloaded playlist
+   * showing a placeholder.
+   */
+  songCoverArtIds: string[];
+} {
   // Lazy-required: keeps the recache worker testable without forcing
   // every test that touches imageCacheService to mock musicCacheTables.
-  const { hydrateCachedItems } = require('../store/persistence/musicCacheTables') as {
+  const { hydrateCachedItems, hydrateCachedSongs } = require('../store/persistence/musicCacheTables') as {
     hydrateCachedItems: () => Record<string, { type: string; coverArtId?: string | null }>;
+    hydrateCachedSongs: () => Record<string, { coverArt?: string | null }>;
   };
-  return Object.values(hydrateCachedItems()).map((r) => ({
+  const items = Object.values(hydrateCachedItems()).map((r) => ({
     type: r.type,
     coverArtId: r.coverArtId ?? null,
   }));
+  const songCoverArtIds: string[] = [];
+  for (const s of Object.values(hydrateCachedSongs())) {
+    const id = s.coverArt;
+    if (typeof id === 'string' && id.length > 0) songCoverArtIds.push(id);
+  }
+  return { items, songCoverArtIds };
 }

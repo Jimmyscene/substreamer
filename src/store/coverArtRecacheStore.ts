@@ -27,6 +27,16 @@ export interface CoverArtRecacheState {
   lastRunAt: number | null;
   /** Identifier of the last trigger source; for diagnostics only. */
   lastTrigger: 'auto' | 'manual' | null;
+  /**
+   * True once a completed recache pass covered per-song cover art (in
+   * addition to album/playlist-level covers). Older completions only
+   * walked `cached_items`, so songs inside downloaded playlists whose
+   * source albums weren't downloaded never got their covers refreshed.
+   * Used by the auto-trigger gate to re-run for users whose previous
+   * completion is on the old scope. `undefined` on legacy persisted
+   * state — treated as `false`.
+   */
+  coversSongs?: boolean;
 
   begin: (total: number, trigger: 'auto' | 'manual') => void;
   recordProcessed: () => void;
@@ -63,7 +73,7 @@ export const coverArtRecacheStore = create<CoverArtRecacheState>()(
         set((s) => ({ failed: s.failed + 1, processed: s.processed + 1 })),
 
       complete: () =>
-        set({ status: 'done', lastRunAt: Date.now() }),
+        set({ status: 'done', lastRunAt: Date.now(), coversSongs: true }),
 
       reset: () =>
         set({
@@ -83,6 +93,7 @@ export const coverArtRecacheStore = create<CoverArtRecacheState>()(
         failed: state.failed,
         lastRunAt: state.lastRunAt,
         lastTrigger: state.lastTrigger,
+        coversSongs: state.coversSongs,
       }),
     },
   ),
