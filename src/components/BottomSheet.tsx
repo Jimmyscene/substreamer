@@ -31,6 +31,15 @@ const BACKDROP_DURATION = 300;
 interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Fires AFTER the native Modal has fully torn down (React unmount + a
+   * small RAF buffer for Android's window manager). Use this when you
+   * need to chain another Modal on top — opening an Alert immediately
+   * after `onClose` runs into Android's "only one Modal at a time"
+   * limitation; awaiting `onCloseComplete` instead is reliable without
+   * hard-coded timeouts.
+   */
+  onCloseComplete?: () => void;
   closeable?: boolean;
   maxHeight?: DimensionValue;
   children: React.ReactNode;
@@ -39,6 +48,7 @@ interface BottomSheetProps {
 export function BottomSheet({
   visible,
   onClose,
+  onCloseComplete,
   closeable = true,
   maxHeight,
   children,
@@ -60,11 +70,35 @@ export function BottomSheet({
     closeableSV.value = closeable;
   }, [closeable, closeableSV]);
 
+  // Refs so `scheduleCloseComplete` can read the latest callback without
+  // re-creating itself (and re-triggering the close useEffect) every render.
+  const onCloseCompleteRef = useRef(onCloseComplete);
+  useEffect(() => {
+    onCloseCompleteRef.current = onCloseComplete;
+  }, [onCloseComplete]);
+
+  /**
+   * Fire onCloseComplete after the Modal's native window manager has had
+   * time to actually dismiss. Two RAFs is the smallest deterministic
+   * wait that lets React commit the unmount AND lets Android finish
+   * tearing down the dialog window before a second Modal opens on top.
+   * Without this the second Modal opens while Android still owns the
+   * touch surface from the first, swallowing taps on the new dialog.
+   */
+  const scheduleCloseComplete = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        onCloseCompleteRef.current?.();
+      });
+    });
+  }, []);
+
   const finishClose = useCallback(() => {
     setInternalVisible(false);
     isClosing.current = false;
     onClose();
-  }, [onClose]);
+    scheduleCloseComplete();
+  }, [onClose, scheduleCloseComplete]);
 
   const markClosing = useCallback(() => {
     isClosing.current = true;
@@ -119,10 +153,11 @@ export function BottomSheet({
         translateY.value = 0;
         backdropOpacity.value = 0;
         setInternalVisible(false);
+        scheduleCloseComplete();
       });
       return () => cancelAnimationFrame(handle);
     }
-  }, [visible, internalVisible, translateY, backdropOpacity]);
+  }, [visible, internalVisible, translateY, backdropOpacity, scheduleCloseComplete]);
 
   const handleModalShow = useCallback(() => {
     playEntryAnimation();

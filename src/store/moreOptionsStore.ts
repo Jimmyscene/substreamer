@@ -33,7 +33,25 @@ export interface MoreOptionsState {
 
   show: (entity: MoreOptionsEntity, source?: MoreOptionsSource) => void;
   hide: () => void;
+  /**
+   * Close the sheet AND return a promise that resolves when the underlying
+   * BottomSheet's native Modal has fully torn down. Use this when you need
+   * to open another Modal (alert, sheet, etc.) immediately after — Android
+   * can only safely show one Modal at a time, so we have to wait for the
+   * first to fully unmount before mounting the next.
+   *
+   * Backed by `_signalCloseComplete()` which the BottomSheet's
+   * `onCloseComplete` calls after the post-unmount RAF chain.
+   */
+  hideAndAwait: () => Promise<void>;
+  /** @internal — called by MoreOptionsSheet's BottomSheet onCloseComplete. */
+  _signalCloseComplete: () => void;
 }
+
+// Resolvers waiting for the next close-complete signal. We hold them at
+// module scope (not inside the store) so the promise plumbing doesn't
+// trigger spurious re-renders for subscribers of the store object.
+const closeCompleteResolvers: Array<() => void> = [];
 
 export const moreOptionsStore = create<MoreOptionsState>()((set) => ({
   visible: false,
@@ -43,4 +61,19 @@ export const moreOptionsStore = create<MoreOptionsState>()((set) => ({
   show: (entity, source = 'default') => set({ visible: true, entity, source }),
 
   hide: () => set({ visible: false, entity: null, source: 'default' }),
+
+  hideAndAwait: () => {
+    set({ visible: false, entity: null, source: 'default' });
+    return new Promise<void>((resolve) => {
+      closeCompleteResolvers.push(resolve);
+    });
+  },
+
+  _signalCloseComplete: () => {
+    // Drain every pending awaiter — they all wanted the same signal.
+    while (closeCompleteResolvers.length > 0) {
+      const resolve = closeCompleteResolvers.shift();
+      resolve?.();
+    }
+  },
 }));

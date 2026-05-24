@@ -41,4 +41,46 @@ describe('moreOptionsStore', () => {
     expect(state.entity).toBeNull();
     expect(state.source).toBe('default');
   });
+
+  // #154 fix — hideAndAwait closes the sheet and returns a promise that
+  // resolves only when the BottomSheet signals onCloseComplete. Action
+  // handlers `await` it before opening a chained modal/alert, so the
+  // chained modal mounts AFTER the sheet's native Modal is fully gone.
+  describe('hideAndAwait + _signalCloseComplete', () => {
+    it('hideAndAwait resets state and waits for the signal to resolve', async () => {
+      moreOptionsStore.getState().show({ type: 'song', item: mockSong }, 'player');
+
+      const promise = moreOptionsStore.getState().hideAndAwait();
+      // State is already cleared synchronously
+      expect(moreOptionsStore.getState().visible).toBe(false);
+      expect(moreOptionsStore.getState().entity).toBeNull();
+
+      // Promise hasn't resolved yet
+      let resolved = false;
+      promise.then(() => { resolved = true; });
+      await Promise.resolve();
+      expect(resolved).toBe(false);
+
+      // Fire the close-complete signal
+      moreOptionsStore.getState()._signalCloseComplete();
+      await promise;
+      expect(resolved).toBe(true);
+    });
+
+    it('_signalCloseComplete drains every waiter at once', async () => {
+      const p1 = moreOptionsStore.getState().hideAndAwait();
+      const p2 = moreOptionsStore.getState().hideAndAwait();
+      const p3 = moreOptionsStore.getState().hideAndAwait();
+
+      moreOptionsStore.getState()._signalCloseComplete();
+
+      await expect(Promise.all([p1, p2, p3])).resolves.toEqual([
+        undefined, undefined, undefined,
+      ]);
+    });
+
+    it('a signal with no waiters is a no-op', () => {
+      expect(() => moreOptionsStore.getState()._signalCloseComplete()).not.toThrow();
+    });
+  });
 });

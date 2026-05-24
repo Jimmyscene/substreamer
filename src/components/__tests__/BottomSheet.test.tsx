@@ -263,6 +263,57 @@ describe('BottomSheet', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // #154 — without onCloseComplete, opening an Alert immediately after the
+  // BottomSheet closed left the alert showing but un-tappable on Android.
+  // onCloseComplete fires only AFTER the Modal has fully torn down so
+  // chained modals can safely mount.
+  it('fires onCloseComplete after a programmatic close', async () => {
+    const onCloseComplete = jest.fn();
+    const { rerender } = render(
+      <BottomSheet visible={true} onClose={jest.fn()} onCloseComplete={onCloseComplete}>
+        <Text>Content</Text>
+      </BottomSheet>,
+    );
+
+    rerender(
+      <BottomSheet visible={false} onClose={jest.fn()} onCloseComplete={onCloseComplete}>
+        <Text>Content</Text>
+      </BottomSheet>,
+    );
+
+    // Flush the RAF chain that schedules onCloseComplete (programmatic
+    // close path) + the inner double-RAF that waits for native teardown.
+    // RN polyfills RAF as setTimeout in jest, so three macrotask ticks
+    // covers outer RAF + double RAF.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onCloseComplete).toHaveBeenCalled();
+  });
+
+  it('fires onCloseComplete after a backdrop-press close', async () => {
+    const onCloseComplete = jest.fn();
+    const { getByTestId } = render(
+      <BottomSheet visible={true} onClose={jest.fn()} onCloseComplete={onCloseComplete}>
+        <Text>Content</Text>
+      </BottomSheet>,
+    );
+
+    act(() => {
+      fireEvent.press(getByTestId('bottom-sheet-backdrop'));
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onCloseComplete).toHaveBeenCalled();
+  });
+
   it('handles layout event to capture sheet height', () => {
     const { getByText } = render(
       <BottomSheet visible={true} onClose={jest.fn()}>

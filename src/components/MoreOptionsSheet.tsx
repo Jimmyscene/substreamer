@@ -257,17 +257,15 @@ export function MoreOptionsSheet() {
     }
   }, [entity, busy, handleClose]);
 
-  const handleAddToPlaylist = useCallback(() => {
+  const handleAddToPlaylist = useCallback(async () => {
     if (!entity) return;
-    handleClose();
-    setTimeout(() => {
-      if (entity.type === 'song') {
-        addToPlaylistStore.getState().showSong(entity.item as Child);
-      } else if (entity.type === 'album') {
-        addToPlaylistStore.getState().showAlbum(entity.item as AlbumID3);
-      }
-    }, 300);
-  }, [entity, handleClose]);
+    await moreOptionsStore.getState().hideAndAwait();
+    if (entity.type === 'song') {
+      addToPlaylistStore.getState().showSong(entity.item as Child);
+    } else if (entity.type === 'album') {
+      addToPlaylistStore.getState().showAlbum(entity.item as AlbumID3);
+    }
+  }, [entity]);
 
   const handleSaveTopSongsPlaylist = useCallback(() => {
     if (!entity || entity.type !== 'artist') return;
@@ -296,7 +294,7 @@ export function MoreOptionsSheet() {
     playMoreByArtist(artistId, artistName);
   }, [entity, handleClose]);
 
-  const handleSetMbid = useCallback(() => {
+  const handleSetMbid = useCallback(async () => {
     if (!entity) return;
     if (entity.type === 'artist') {
       const artistId = entity.item.id;
@@ -304,28 +302,22 @@ export function MoreOptionsSheet() {
       const override = getOverride(mbidOverrideStore.getState().overrides, 'artist', artistId);
       const resolvedMbid = artistDetailStore.getState().artists[artistId]?.resolvedMbid;
       const currentMbid = override?.mbid ?? resolvedMbid ?? null;
-      handleClose();
-      setTimeout(() => {
-        mbidSearchStore.getState().showArtist(artistId, artistName, currentMbid, entity.item.coverArt);
-      }, 300);
+      await moreOptionsStore.getState().hideAndAwait();
+      mbidSearchStore.getState().showArtist(artistId, artistName, currentMbid, entity.item.coverArt);
     } else if (entity.type === 'album') {
       const album = entity.item as AlbumID3;
       const override = getOverride(mbidOverrideStore.getState().overrides, 'album', album.id);
       const currentMbid = override?.mbid ?? null;
-      handleClose();
-      setTimeout(() => {
-        mbidSearchStore.getState().showAlbum(album.id, album.name, album.artist ?? null, currentMbid, album.coverArt);
-      }, 300);
+      await moreOptionsStore.getState().hideAndAwait();
+      mbidSearchStore.getState().showAlbum(album.id, album.name, album.artist ?? null, currentMbid, album.coverArt);
     }
-  }, [entity, handleClose]);
+  }, [entity]);
 
-  const handleAddQueueToPlaylist = useCallback(() => {
-    handleClose();
+  const handleAddQueueToPlaylist = useCallback(async () => {
     const queue = playerStore.getState().queue;
-    setTimeout(() => {
-      addToPlaylistStore.getState().showQueue(queue);
-    }, 300);
-  }, [handleClose]);
+    await moreOptionsStore.getState().hideAndAwait();
+    addToPlaylistStore.getState().showQueue(queue);
+  }, []);
 
   const handleAddToQueue = useCallback(async () => {
     if (!entity) return;
@@ -376,21 +368,21 @@ export function MoreOptionsSheet() {
     }
   }, [entity, handleClose, source, router]);
 
-  const handleShowDetails = useCallback(() => {
+  const handleShowDetails = useCallback(async () => {
     if (entity?.type === 'album') {
       setDetailsAlbum(entity.item as AlbumID3);
     }
-    handleClose();
-    setTimeout(() => setDetailsVisible(true), 300);
-  }, [entity, handleClose]);
+    await moreOptionsStore.getState().hideAndAwait();
+    setDetailsVisible(true);
+  }, [entity]);
 
-  const handleShowTrackDetails = useCallback(() => {
+  const handleShowTrackDetails = useCallback(async () => {
     if (entity?.type === 'song') {
       setDetailsTrack(entity.item as Child);
     }
-    handleClose();
-    setTimeout(() => setDetailsVisible(true), 300);
-  }, [entity, handleClose]);
+    await moreOptionsStore.getState().hideAndAwait();
+    setDetailsVisible(true);
+  }, [entity]);
 
   const handleDownload = useCallback(async () => {
     if (!entity || !canDownload(entity)) return;
@@ -433,83 +425,82 @@ export function MoreOptionsSheet() {
     handleRemoveSongDownload(song);
   }, [entity, handleClose]);
 
-  const handleShare = useCallback(() => {
+  const handleShare = useCallback(async () => {
     if (!entity) return;
-    handleClose();
-    setTimeout(() => {
-      if (entity.type === 'album') {
-        createShareStore.getState().showAlbum(entity.item.id, entity.item.name, entity.item.artist, entity.item.coverArt);
-      } else if (entity.type === 'playlist') {
-        createShareStore.getState().showPlaylist(entity.item.id, entity.item.name, entity.item.coverArt);
-      }
-    }, 300);
-  }, [entity, handleClose]);
+    await moreOptionsStore.getState().hideAndAwait();
+    if (entity.type === 'album') {
+      createShareStore.getState().showAlbum(entity.item.id, entity.item.name, entity.item.artist, entity.item.coverArt);
+    } else if (entity.type === 'playlist') {
+      createShareStore.getState().showPlaylist(entity.item.id, entity.item.name, entity.item.coverArt);
+    }
+  }, [entity]);
 
-  const handleSetRating = useCallback(() => {
+  const handleSetRating = useCallback(async () => {
     if (!entity || !isRatable(entity)) return;
-    handleClose();
-    setTimeout(() => {
-      const coverArtId = (entity.item as { coverArt?: string }).coverArt;
-      setRatingStore.getState().show(
-        entity.type as 'song' | 'album' | 'artist',
-        entity.item.id,
-        getTitle(entity, t),
-        entityRating,
-        coverArtId,
-      );
-    }, 300);
-  }, [entity, entityRating, handleClose]);
+    const coverArtId = (entity.item as { coverArt?: string }).coverArt;
+    await moreOptionsStore.getState().hideAndAwait();
+    setRatingStore.getState().show(
+      entity.type as 'song' | 'album' | 'artist',
+      entity.item.id,
+      getTitle(entity, t),
+      entityRating,
+      coverArtId,
+    );
+  }, [entity, entityRating, t]);
 
-  const handleDeletePlaylist = useCallback(() => {
+  const handleDeletePlaylist = useCallback(async () => {
     if (!entity || entity.type !== 'playlist') return;
     const playlistId = entity.item.id;
     const playlistName = entity.item.name;
     const onDetailView = pathname === `/playlist/${playlistId}`;
-    handleClose();
 
-    setTimeout(() => {
-      alert(
-        t('deletePlaylist'),
-        t('deletePlaylistConfirmMessage', { name: playlistName }),
-        [
-          { text: t('cancel'), style: 'cancel' },
-          {
-            text: t('delete'),
-            style: 'destructive',
-            onPress: async () => {
-              processingOverlayStore.getState().show(t('deleting'));
-              try {
-                const success = await deletePlaylist(playlistId);
-                if (!success) throw new Error('API returned false');
+    // Wait for the BottomSheet's native Modal to fully tear down BEFORE
+    // opening the confirmation alert. On Android, opening the alert
+    // while the sheet's Modal is still alive leaves the dialog visible
+    // but unable to receive touches (#154).
+    await moreOptionsStore.getState().hideAndAwait();
 
-                playlistDetailStore.getState().removePlaylist(playlistId);
-                playlistLibraryStore.getState().removePlaylist(playlistId);
-                if (playlistId in musicCacheStore.getState().cachedItems) {
-                  deleteCachedItem(playlistId);
-                }
+    alert(
+      t('deletePlaylist'),
+      t('deletePlaylistConfirmMessage', { name: playlistName }),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            processingOverlayStore.getState().show(t('deleting'));
+            try {
+              const success = await deletePlaylist(playlistId);
+              if (!success) throw new Error('API returned false');
 
-                processingOverlayStore.getState().showSuccess(t('playlistDeleted'));
-
-                if (onDetailView) {
-                  // The sheet has already unmounted by this point, so a
-                  // useEffect cleanup can't cancel this timer. Guard with
-                  // canGoBack + a live pathname check so we never pop a
-                  // stack the user navigated into during the success-
-                  // overlay window.
-                  setTimeout(() => {
-                    if (!router.canGoBack()) return;
-                    router.back();
-                  }, 800);
-                }
-              } catch {
-                processingOverlayStore.getState().showError(t('failedToDeletePlaylist'));
+              playlistDetailStore.getState().removePlaylist(playlistId);
+              playlistLibraryStore.getState().removePlaylist(playlistId);
+              if (playlistId in musicCacheStore.getState().cachedItems) {
+                deleteCachedItem(playlistId);
               }
-            },
+
+              processingOverlayStore.getState().showSuccess(t('playlistDeleted'));
+
+              if (onDetailView) {
+                // The sheet has already unmounted by this point, so a
+                // useEffect cleanup can't cancel this timer. Guard with
+                // canGoBack + a live pathname check so we never pop a
+                // stack the user navigated into during the success-
+                // overlay window.
+                setTimeout(() => {
+                  if (!router.canGoBack()) return;
+                  router.back();
+                }, 800);
+              }
+            } catch {
+              processingOverlayStore.getState().showError(t('failedToDeletePlaylist'));
+            }
           },
-        ],
-      );
-    }, 350);
-  }, [entity, handleClose, pathname, router]);
+        },
+      ],
+    );
+  }, [entity, pathname, router, alert, t]);
 
   const handleToggleScrobbleExclusion = useCallback(() => {
     if (!entity || !canExcludeFromScrobbling(entity)) return;
@@ -595,7 +586,11 @@ export function MoreOptionsSheet() {
 
   return (
     <>
-      <BottomSheet visible={visible} onClose={handleClose}>
+      <BottomSheet
+        visible={visible}
+        onClose={handleClose}
+        onCloseComplete={() => moreOptionsStore.getState()._signalCloseComplete()}
+      >
           {isPlayerSource && showAddQueueToPlaylist ? (
             <>
               {/* Section 1: Player Queue */}
