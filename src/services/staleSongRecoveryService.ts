@@ -284,9 +284,10 @@ export async function recoverStaleSongId(
 /* ------------------------------------------------------------------ */
 
 const THRESHOLD_MS: Record<Exclude<MetadataRefreshThreshold, 'always' | 'never'>, number> = {
-  '5min': 5 * 60_000,
-  '15min': 15 * 60_000,
   '1hour': 60 * 60_000,
+  '1day': 24 * 60 * 60_000,
+  '1week': 7 * 24 * 60 * 60_000,
+  '1month': 30 * 24 * 60 * 60_000,
 };
 
 /**

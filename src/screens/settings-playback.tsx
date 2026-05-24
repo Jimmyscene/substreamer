@@ -54,9 +54,10 @@ const ARTIST_PLAY_MODE_OPTIONS: { value: ArtistPlayMode; labelKey: string }[] = 
 
 const METADATA_REFRESH_OPTIONS: { value: MetadataRefreshThreshold; labelKey: string }[] = [
   { value: 'always', labelKey: 'metadataRefreshAlways' },
-  { value: '5min', labelKey: 'metadataRefresh5min' },
-  { value: '15min', labelKey: 'metadataRefresh15min' },
   { value: '1hour', labelKey: 'metadataRefresh1hour' },
+  { value: '1day', labelKey: 'metadataRefresh1day' },
+  { value: '1week', labelKey: 'metadataRefresh1week' },
+  { value: '1month', labelKey: 'metadataRefresh1month' },
   { value: 'never', labelKey: 'metadataRefreshNever' },
 ];
 
@@ -110,7 +111,7 @@ export function SettingsPlaybackScreen() {
     skipForwardInterval === 30 &&
     remoteControlMode === 'skip-track' &&
     artistPlayMode === 'topSongs' &&
-    metadataRefreshThreshold === '5min';
+    metadataRefreshThreshold === '1week';
 
   const handleRemoteChange = useCallback(
     (mode: RemoteControlMode) => {
@@ -141,7 +142,7 @@ export function SettingsPlaybackScreen() {
             setSkipForwardInterval(30);
             setRemoteControlMode('skip-track');
             setArtistPlayMode('topSongs');
-            setMetadataRefreshThreshold('5min');
+            setMetadataRefreshThreshold('1week');
             updateRemoteCapabilities();
             setBitrateOpen(false);
             setDlBitrateOpen(false);

@@ -82,22 +82,35 @@ export type ArtistPlayMode = 'topSongs' | 'allSongs';
  * server-side ID changes (Navidrome rescans, file replacements,
  * octo-fiesta permanentize) BEFORE they cause a 'Source error' flash.
  *
- *   - 'always': refresh on every play (heaviest server load)
- *   - '5min'  : refresh if cache is older than 5 minutes (default)
- *   - '15min' : refresh if cache is older than 15 minutes
- *   - '1hour' : refresh if cache is older than 1 hour
- *   - 'never' : never proactively refresh — rely on the reactive
- *               recovery path that runs after a PlaybackError
+ * Defaults to '1week' — the base assumption is that libraries are
+ * mostly static, so even a week between proactive refreshes is plenty
+ * for the typical user. The reactive recovery path handles anything
+ * that slips through.
+ *
+ *   - 'always' : refresh on every play (heaviest server load)
+ *   - '1hour'  : refresh if cache is older than 1 hour
+ *   - '1day'   : refresh if cache is older than 1 day
+ *   - '1week'  : refresh if cache is older than 1 week (default)
+ *   - '1month' : refresh if cache is older than 1 month (~30 days)
+ *   - 'never'  : never proactively refresh — rely on the reactive
+ *                recovery path that runs after a PlaybackError
  *
  * The reactive recovery path always runs regardless of this setting;
  * 'never' just disables the proactive optimisation.
  */
-export type MetadataRefreshThreshold = 'always' | '5min' | '15min' | '1hour' | 'never';
+export type MetadataRefreshThreshold =
+  | 'always'
+  | '1hour'
+  | '1day'
+  | '1week'
+  | '1month'
+  | 'never';
 export const METADATA_REFRESH_THRESHOLDS: MetadataRefreshThreshold[] = [
   'always',
-  '5min',
-  '15min',
   '1hour',
+  '1day',
+  '1week',
+  '1month',
   'never',
 ];
 
@@ -167,7 +180,7 @@ export const playbackSettingsStore = create<PlaybackSettingsState>()(
       skipForwardInterval: 30,
       remoteControlMode: 'skip-track',
       artistPlayMode: 'topSongs',
-      metadataRefreshThreshold: '5min',
+      metadataRefreshThreshold: '1week',
 
       setMaxBitRate: (maxBitRate) => set({ maxBitRate }),
       setStreamFormat: (streamFormat) => set({ streamFormat: normalizeFormat(streamFormat) }),

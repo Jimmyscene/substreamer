@@ -29,7 +29,7 @@ jest.mock('../../store/offlineModeStore', () => ({
   offlineModeStore: { getState: () => mockOffline },
 }));
 
-const mockPlaybackSettings = { metadataRefreshThreshold: '5min' as string };
+const mockPlaybackSettings = { metadataRefreshThreshold: '1week' as string };
 jest.mock('../../store/playbackSettingsStore', () => ({
   playbackSettingsStore: { getState: () => mockPlaybackSettings },
 }));
@@ -64,7 +64,7 @@ beforeEach(() => {
   mockRename.mockReturnValue('missing');
   mockRemap.mockReturnValue(false);
   mockOffline.offlineMode = false;
-  mockPlaybackSettings.metadataRefreshThreshold = '5min';
+  mockPlaybackSettings.metadataRefreshThreshold = '1week';
 });
 
 describe('findMatchingSong', () => {
@@ -298,8 +298,12 @@ describe('recoverStaleSongId — search3 fallback', () => {
 });
 
 describe('refreshAndRecoverForPlay — freshness threshold gating', () => {
-  const FRESH = Date.now() - 60_000;          // 1 min old → fresh under 5min threshold
-  const STALE_5MIN = Date.now() - 6 * 60_000;  // 6 min old → stale under 5min threshold
+  const ONE_HOUR_MS = 60 * 60_000;
+  const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+  const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+  const FRESH = Date.now() - 60_000;                  // 1 min old → fresh under any threshold
+  const STALE_1HOUR = Date.now() - 2 * ONE_HOUR_MS;   // 2 hours old → stale under 1hour
+  const STALE_1WEEK = Date.now() - 8 * ONE_DAY_MS;    // 8 days old → stale under 1week (default)
 
   it('returns null when no albumId anchor', async () => {
     const result = await refreshAndRecoverForPlay(makeSong({ id: 's1' }));
@@ -330,8 +334,8 @@ describe('refreshAndRecoverForPlay — freshness threshold gating', () => {
     expect(mockFetchAlbum).toHaveBeenCalledWith('a1');
   });
 
-  it('skips refresh when cache is fresher than the threshold', async () => {
-    mockPlaybackSettings.metadataRefreshThreshold = '5min';
+  it('skips refresh when cache is fresher than the threshold (default 1 week)', async () => {
+    mockPlaybackSettings.metadataRefreshThreshold = '1week';
     mockAlbums['a1'] = { retrievedAt: FRESH, album: { id: 'a1', song: [] } };
 
     const result = await refreshAndRecoverForPlay(makeSong({ id: 's1', albumId: 'a1' }));
@@ -339,9 +343,33 @@ describe('refreshAndRecoverForPlay — freshness threshold gating', () => {
     expect(mockFetchAlbum).not.toHaveBeenCalled();
   });
 
-  it('refreshes when cache is older than the threshold', async () => {
-    mockPlaybackSettings.metadataRefreshThreshold = '5min';
-    mockAlbums['a1'] = { retrievedAt: STALE_5MIN, album: { id: 'a1', song: [] } };
+  it('skips refresh under 1hour when cache is 30 min old', async () => {
+    mockPlaybackSettings.metadataRefreshThreshold = '1hour';
+    mockAlbums['a1'] = { retrievedAt: Date.now() - 30 * 60_000, album: { id: 'a1', song: [] } };
+
+    const result = await refreshAndRecoverForPlay(makeSong({ id: 's1', albumId: 'a1' }));
+    expect(result).toBeNull();
+    expect(mockFetchAlbum).not.toHaveBeenCalled();
+  });
+
+  it('refreshes when cache is older than the 1hour threshold', async () => {
+    mockPlaybackSettings.metadataRefreshThreshold = '1hour';
+    mockAlbums['a1'] = { retrievedAt: STALE_1HOUR, album: { id: 'a1', song: [] } };
+    mockFetchAlbum.mockResolvedValue({
+      id: 'a1',
+      song: [makeSong({ id: 'fresh-1', title: 'Track Title', artist: 'Artist Name' })],
+    });
+
+    const result = await refreshAndRecoverForPlay(
+      makeSong({ id: 'old-1', albumId: 'a1' }),
+    );
+    expect(mockFetchAlbum).toHaveBeenCalledWith('a1');
+    expect(result?.current.id).toBe('fresh-1');
+  });
+
+  it('refreshes when cache is older than the 1week (default) threshold', async () => {
+    mockPlaybackSettings.metadataRefreshThreshold = '1week';
+    mockAlbums['a1'] = { retrievedAt: STALE_1WEEK, album: { id: 'a1', song: [] } };
     mockFetchAlbum.mockResolvedValue({
       id: 'a1',
       song: [makeSong({ id: 'fresh-1', title: 'Track Title', artist: 'Artist Name' })],
@@ -355,7 +383,7 @@ describe('refreshAndRecoverForPlay — freshness threshold gating', () => {
   });
 
   it('refreshes when the album has never been cached', async () => {
-    mockPlaybackSettings.metadataRefreshThreshold = '5min';
+    mockPlaybackSettings.metadataRefreshThreshold = '1week';
     // No mockAlbums['a1'] entry — never visited.
     mockFetchAlbum.mockResolvedValue({
       id: 'a1',
