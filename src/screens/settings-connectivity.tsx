@@ -1,6 +1,6 @@
 import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { HeaderHeightContext } from "expo-router/react-navigation";
-import { useNavigation } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ import {
   requestBatteryOptimizationExemption,
 } from '../services/batteryOptimizationService';
 import { batteryOptimizationStore } from '../store/batteryOptimizationStore';
+import { switchToServer } from '../services/failoverService';
 import { removeTrustForHost, trustCertificateForHost } from '../services/sslTrustService';
 import { sslCertStore, type TrustedCertEntry } from '../store/sslCertStore';
 import { settingsStyles } from '../styles/settingsStyles';
@@ -36,6 +37,7 @@ export function SettingsConnectivityScreen() {
   const { colors } = useTheme();
   const { alert, alertProps } = useThemedAlert();
   const navigation = useNavigation();
+  const router = useRouter();
   const headerHeight = useContext(HeaderHeightContext) ?? 0;
 
   const offlineMode = offlineModeStore((s) => s.offlineMode);
@@ -50,10 +52,23 @@ export function SettingsConnectivityScreen() {
   const locationGranted = autoOfflineStore((s) => s.locationPermissionGranted);
 
   const serverUrl = authStore((s) => s.serverUrl);
+  const secondaryServerUrl = authStore((s) => s.secondaryServerUrl);
+  const activeServer = authStore((s) => s.activeServer);
+  const serverSwitchMode = authStore((s) => s.serverSwitchMode);
+  const setServerSwitchMode = authStore((s) => s.setServerSwitchMode);
   const activeHostname = useMemo(() => {
     if (!serverUrl) return null;
     try { return new URL(serverUrl).hostname; } catch { return null; }
   }, [serverUrl]);
+
+  const handleManualSwitchServer = useCallback(async () => {
+    const target = activeServer === 'primary' ? 'secondary' : 'primary';
+    await switchToServer(target, 'manual');
+  }, [activeServer]);
+
+  const handleNavigateToServerSettings = useCallback(() => {
+    router.push('/settings-server');
+  }, [router]);
 
   const [currentSSID, setCurrentSSID] = useState<string | null>(null);
   const [ssidPromptVisible, setSsidPromptVisible] = useState(false);
@@ -629,6 +644,96 @@ export function SettingsConnectivityScreen() {
         </View>
       </View>
 
+      <View style={settingsStyles.section}>
+        <Text style={[settingsStyles.sectionTitle, dynamicStyles.sectionTitle]}>
+          {t('serverFailover')}
+        </Text>
+        <View style={[settingsStyles.card, settingsStyles.cardPadded, dynamicStyles.card]}>
+          {secondaryServerUrl == null ? (
+            // State A — secondary not configured. Always-visible educational
+            // card with a link to Server & Account.
+            <>
+              <Text style={[styles.toggleHint, { color: colors.textSecondary, marginBottom: 8 }]}>
+                {t('serverFailoverEmptyExplain')}
+              </Text>
+              <Text style={[styles.toggleHint, { color: colors.textSecondary, marginBottom: 12 }]}>
+                {t('serverFailoverEmptySameServerNote')}
+              </Text>
+              <Pressable
+                onPress={handleNavigateToServerSettings}
+                style={({ pressed }) => [
+                  styles.failoverActionButton,
+                  { borderColor: colors.primary },
+                  pressed && settingsStyles.pressed,
+                ]}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                <Text style={[styles.failoverActionButtonText, { color: colors.primary }]}>
+                  {t('addSecondaryUrlAction')}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            // States B / C — secondary configured. Mode toggle + active
+            // status + (manual only) Switch button. The mode toggle drives
+            // the failoverService recovery poller indirectly via authStore
+            // subscriptions wired in Phase 6.
+            <>
+              <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t('failoverModeLabel')}
+                  </Text>
+                  <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
+                    {serverSwitchMode === 'automatic'
+                      ? t('failoverAutoExplain')
+                      : t('failoverManualExplain')}
+                  </Text>
+                </View>
+                <Switch
+                  value={serverSwitchMode === 'automatic'}
+                  onValueChange={(on) => setServerSwitchMode(on ? 'automatic' : 'manual')}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+
+              <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t('activeServerLabel')}
+                  </Text>
+                  <Text
+                    style={[styles.toggleHint, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                    ellipsizeMode="middle"
+                  >
+                    {activeServer === 'primary' ? t('activeServerPrimary') : t('activeServerSecondary')}
+                    {' — '}
+                    {serverUrl ?? '—'}
+                  </Text>
+                </View>
+              </View>
+
+              {serverSwitchMode === 'manual' && (
+                <Pressable
+                  onPress={handleManualSwitchServer}
+                  style={({ pressed }) => [
+                    styles.failoverActionButton,
+                    { borderColor: colors.primary, marginTop: 12 },
+                    pressed && settingsStyles.pressed,
+                  ]}
+                >
+                  <Ionicons name="swap-horizontal-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.failoverActionButtonText, { color: colors.primary }]}>
+                    {activeServer === 'primary' ? t('switchToSecondary') : t('switchToPrimary')}
+                  </Text>
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
+      </View>
+
       {Platform.OS === 'android' && batteryOptRestricted !== null && (
         <View style={settingsStyles.section}>
           <Text style={[settingsStyles.sectionTitle, dynamicStyles.sectionTitle]}>{t('backgroundPlayback')}</Text>
@@ -867,6 +972,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontStyle: 'italic',
     padding: 16,
+  },
+  failoverActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  failoverActionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   trustedCertRow: {
     flexDirection: 'row',
