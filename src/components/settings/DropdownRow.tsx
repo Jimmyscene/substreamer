@@ -21,7 +21,7 @@ export interface DropdownOption<T> {
  * Designed to live inside a `settingsStyles.card`. Renders its own hairline
  * separators so multiple `DropdownRow`s in one card stack cleanly.
  */
-export function DropdownRow<T extends string | number>({
+export function DropdownRow<T extends string | number | null>({
   label,
   value,
   options,
