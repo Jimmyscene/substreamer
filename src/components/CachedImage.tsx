@@ -54,7 +54,6 @@ import {
 import { logImageCache } from '../services/imageCacheLogger';
 import { STARRED_COVER_ART_ID } from '../services/musicCacheService';
 import { getCoverArtUrl, VARIOUS_ARTISTS_COVER_ART_ID } from '../services/subsonicService';
-import { connectivityStore } from '../store/connectivityStore';
 import { offlineModeStore } from '../store/offlineModeStore';
 
 import { absoluteFill } from '../utils/styles';
@@ -66,17 +65,6 @@ import { absoluteFill } from '../utils/styles';
 const DEBOUNCE_MS = 150;
 /** Duration of the placeholder-to-image crossfade for remote URLs. */
 const FADE_DURATION_MS = 300;
-/** Wait between boot-race retries when the first cacheAllSizes resolves
- *  without landing a file. Larger than DEBOUNCE_MS so it doesn't pile up
- *  against fast-scroll churn; smaller than human "give-up" so the cover
- *  appears within a couple of seconds of the cause clearing. */
-const BOOT_RETRY_MS = 2_000;
-/** Max consecutive boot-race retries before giving up (further unsticks
- *  rely on the offlineMode / connectivityStore subscriptions or the
- *  cache-update subscription). 2 is enough to cover the typical
- *  auth-rehydrate / first-ping window without unbounded re-fetching of
- *  a cover the server genuinely can't return. */
-const BOOT_RETRY_MAX = 2;
 /** Backoff before retrying a failed image load once (covers server cold-start). */
 const RETRY_BACKOFF_MS = 2500;
 /** Min size for the placeholder logo (dp). */
@@ -183,13 +171,6 @@ export const CachedImage = memo(function CachedImage({
   // a server that fails at smaller sizes. Prevents the give-up branch
   // from re-entering the fallback path on subsequent errors.
   const sourceFallbackAttemptedRef = useRef(false);
-  // Boot-race retry budget. cacheAllSizes can resolve without landing a
-  // file when auth / connectivity is still settling at app launch (the
-  // post-Migration-25 stuck-placeholder case). We schedule up to
-  // BOOT_RETRY_MAX one-shot retries before giving up; further unsticks
-  // rely on the offlineMode / connectivityStore subscriptions.
-  const bootRetryCountRef = useRef(0);
-  const bootRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---- fade-in shared value (remote URLs only) --------------------- */
   // Initial opacity: 1 for trusted instant URIs (cached files + bundled
@@ -201,14 +182,9 @@ export const CachedImage = memo(function CachedImage({
     currentIdRef.current = coverArtId;
     retriedRef.current = false;
     sourceFallbackAttemptedRef.current = false;
-    bootRetryCountRef.current = 0;
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
-    }
-    if (bootRetryTimerRef.current) {
-      clearTimeout(bootRetryTimerRef.current);
-      bootRetryTimerRef.current = null;
     }
     // Clear any stale remote URL and error-suppression from a previous
     // coverArtId so a new mount starts fresh.
@@ -284,28 +260,7 @@ export const CachedImage = memo(function CachedImage({
           if (cancelled || currentIdRef.current !== coverArtId) return;
           if (getCachedImageUri(coverArtId, size) != null) {
             setReloadNonce((n) => n + 1);
-            return;
           }
-          // cacheAllSizes resolved but no file landed for this size —
-          // either auth/connectivity was half-ready (boot race), or the
-          // server didn't return anything decodable. Schedule one more
-          // one-shot retry up to BOOT_RETRY_MAX. Belt-and-braces with
-          // the connectivityStore / offlineMode subscribers above.
-          if (bootRetryCountRef.current >= BOOT_RETRY_MAX) return;
-          if (offlineModeStore.getState().offlineMode) return;
-          if (bootRetryTimerRef.current) clearTimeout(bootRetryTimerRef.current);
-          bootRetryTimerRef.current = setTimeout(() => {
-            bootRetryTimerRef.current = null;
-            if (cancelled || currentIdRef.current !== coverArtId) return;
-            bootRetryCountRef.current += 1;
-            logImageCache(
-              `CachedImage boot-retry id=${coverArtId} size=${size} attempt=${bootRetryCountRef.current}/${BOOT_RETRY_MAX}`,
-            );
-            // Bump reloadNonce — the effect re-runs and re-fires
-            // cacheAllSizes on the new render. Equivalent to forcing
-            // the same path the connectivityStore subscriber takes.
-            setReloadNonce((n) => n + 1);
-          }, BOOT_RETRY_MS);
         })
         .catch(() => {
           /* cache failure is non-critical; placeholder or remote URL stays */
@@ -315,10 +270,6 @@ export const CachedImage = memo(function CachedImage({
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      if (bootRetryTimerRef.current) {
-        clearTimeout(bootRetryTimerRef.current);
-        bootRetryTimerRef.current = null;
-      }
     };
   }, [coverArtId, size, fallbackUri, cachedUri, reloadNonce]);
 
@@ -328,10 +279,6 @@ export const CachedImage = memo(function CachedImage({
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
-      }
-      if (bootRetryTimerRef.current) {
-        clearTimeout(bootRetryTimerRef.current);
-        bootRetryTimerRef.current = null;
       }
     };
   }, []);
@@ -365,25 +312,6 @@ export const CachedImage = memo(function CachedImage({
       // Reset retry state so a freshly-online network failure doesn't
       // count against the budget consumed offline; bump reloadNonce so
       // the debounced fetch effect re-evaluates and can set remoteUri.
-      retriedRef.current = false;
-      setErrorSuppress(false);
-      setReloadNonce((n) => n + 1);
-    });
-  }, []);
-
-  /* ---- recover when server becomes reachable ---------------------- */
-  // After an image-cache wipe (Migration 25) or any boot-time race
-  // between auth rehydration and the initial fetch effect, the
-  // debounced fetch can land while connectivity / auth isn't quite
-  // ready, leaving the card on the placeholder. Subscribing to
-  // connectivityStore unsticks every CachedImage as soon as the server
-  // is confirmed reachable, without the user having to toggle offline
-  // mode. Same pattern as the offline subscriber above; both kick
-  // reloadNonce so the debounced fetch effect re-runs.
-  useEffect(() => {
-    return connectivityStore.subscribe((state, prev) => {
-      if (state.isServerReachable === prev.isServerReachable) return;
-      if (!state.isServerReachable) return; // only act on unreachable → reachable
       retriedRef.current = false;
       setErrorSuppress(false);
       setReloadNonce((n) => n + 1);
