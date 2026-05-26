@@ -1424,63 +1424,50 @@ export async function refreshCachedImage(
 /* ------------------------------------------------------------------ */
 
 /**
- * Delete all cached images and recreate the cache directory.
- * Returns the number of bytes freed — derived from the DB aggregate
- * (cheap single SELECT) rather than the former recursive directory walk.
- */
-export async function clearImageCache(): Promise<number> {
-  const agg = hydrateImageCacheAggregates();
-  const freedBytes = agg.totalBytes;
-  const dir = ensureCacheDir();
-  try {
-    dir.delete();
-  } catch {
-    /* may fail if already empty */
-  }
-  cacheDir = null;
-  uriCache.clear();
-  downloadQueue.length = 0;
-  downloading.clear();
-  resolveAllWaiters();
-  initImageCache();
-  clearAllCachedImages();
-  imageCacheStore.getState().reset();
-  logImageCache(`clearImageCache freed-bytes=${freedBytes}`);
-  return freedBytes;
-}
-
-/**
- * Wipe every trace of the image cache for logout — on-disk dir, in-memory
- * queue/uriCache/pendingResolvers, DB rows, and the store aggregate state.
+ * Clear every piece of image-cache state: in-memory queues, on-disk dir,
+ * SQL rows, store aggregates. Order matters — drop in-memory pending
+ * work BEFORE deleting the on-disk dir so a worker that wakes mid-delete
+ * can't write a tmp file into a subdir we just removed.
  *
- * Differs from {@link clearImageCache} in that it does NOT re-init the
- * cache directory after wiping. The session is over; the next login will
- * re-arm `initImageCache()` via the auth flow. Re-init here would also
- * re-arm the AppState listener `teardownImageCache()` just removed,
- * defeating the point of running them together.
- *
- * Called exclusively from `resetAllStores()`. Synchronous DB cleanup
- * + best-effort filesystem delete; never throws.
+ * Pass `{ reinit: true }` when the cache will continue to be used (user-
+ * triggered "Clear Cache"); `{ reinit: false }` when the session is over
+ * (logout) and the next `initImageCache` will come from the auth flow.
  */
-export function wipeImageCacheForLogout(): void {
-  // teardownImageCache() removes the AppState listener; here we tear down
-  // the rest. Order matters: drop in-memory pending work BEFORE deleting
-  // the on-disk dir so a worker that wakes mid-delete can't write a tmp
-  // file into a subdir we just removed.
+function teardownImageCacheState({ reinit }: { reinit: boolean }): void {
   uriCache.clear();
   downloadQueue.length = 0;
   downloading.clear();
   resolveAllWaiters();
   if (cacheDir) {
-    try {
-      cacheDir.delete();
-    } catch {
-      /* best-effort — kvStorage cleanup happens regardless */
-    }
+    try { cacheDir.delete(); } catch { /* best-effort */ }
     cacheDir = null;
   }
   clearAllCachedImages();
   imageCacheStore.getState().reset();
+  if (reinit) initImageCache();
+}
+
+/**
+ * Delete all cached images and recreate the cache directory.
+ * Returns the number of bytes freed — derived from the DB aggregate
+ * (cheap single SELECT) rather than a recursive directory walk.
+ */
+export async function clearImageCache(): Promise<number> {
+  const freedBytes = hydrateImageCacheAggregates().totalBytes;
+  teardownImageCacheState({ reinit: true });
+  logImageCache(`clearImageCache freed-bytes=${freedBytes}`);
+  return freedBytes;
+}
+
+/**
+ * Wipe every trace of the image cache for logout. Same as
+ * {@link clearImageCache} but skips re-init — the session is over and the
+ * next `initImageCache` will come from the auth flow. Called exclusively
+ * from `resetAllStores()`, paired with `teardownImageCache()` which
+ * removes the AppState listener.
+ */
+export function wipeImageCacheForLogout(): void {
+  teardownImageCacheState({ reinit: false });
   logImageCache('wipeImageCacheForLogout done');
 }
 
