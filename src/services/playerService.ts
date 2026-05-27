@@ -102,8 +102,6 @@ let scrobbleHandledByEnded = false;
 let positionOffset = 0;
 /** True while we are reloading the current track for stream recovery. */
 let isRecoveringStream = false;
-/** True while the queue is being shuffled, to guard event handlers. */
-let isShuffling = false;
 /**
  * True during multi-step queue operations (playTrack, shuffleQueue) where
  * multiple PlaybackActiveTrackChanged events fire for a single user action.
@@ -512,7 +510,7 @@ export async function initPlayer(): Promise<void> {
 
   TrackPlayer.addEventListener(Event.PlaybackEndedWithReason, (e) => {
     // During queue-setup operations, skip scrobble coordination entirely.
-    if (isSettingQueue || isShuffling) return;
+    if (isSettingQueue) return;
 
     // Resolve the track that actually finished: prefer the snapshot saved
     // by ActiveTrackChanged (if it fired first), otherwise use the current
@@ -568,15 +566,15 @@ export async function initPlayer(): Promise<void> {
       return;
     }
 
-    // During a shuffle or queue replacement (playTrack) RNTP may fire a
+    // During a queue replacement (playTrack, shuffleQueue) RNTP may fire a
     // transient null-track event from reset() — ignore it so the tablet
     // panel stays open and the UI doesn't flicker.
-    if ((isShuffling || isSettingQueue) && (track == null || !track.id)) {
+    if (isSettingQueue && (track == null || !track.id)) {
       return;
     }
 
     // --- Scrobble coordination: save the outgoing track for EndedWithReason ---
-    if (!isSettingQueue && !isShuffling && !isRecoveringStream) {
+    if (!isSettingQueue && !isRecoveringStream) {
       if (scrobbleHandledByEnded) {
         // EndedWithReason already fired first for this transition and
         // consumed previousActiveChild — don't save a stale reference.
@@ -610,7 +608,7 @@ export async function initPlayer(): Promise<void> {
 
     previousActiveChild = resolvedChild;
 
-    if (!isSettingQueue && !isShuffling && activeIndex != null) {
+    if (!isSettingQueue && activeIndex != null) {
       persistQueue(currentChildQueue, activeIndex);
     }
   });
@@ -1585,6 +1583,19 @@ export function applyLocalPlayToPlayer(songId: string, now: string): void {
 // breaking the playerService ↔ scrobbleService ↔ playStatsService cycle.
 registerPlayerPlayStatListener(applyLocalPlayToPlayer);
 
+/**
+ * Shuffle the current play queue in place and restart from index 0.
+ *
+ * Uses the same pause → reset → add → play sequence as `playTrack` so the
+ * native player gets a clean teardown before the new tracks are added.
+ * The earlier `TrackPlayer.setQueue()` shortcut skipped `reset()` and was
+ * a reported crash source on Android (ExoPlayer transitioning out of pause
+ * with no full reset between `clear()` and `add()`).
+ *
+ * `trackPlaylistMap` is left untouched — children keep their IDs across a
+ * reorder, so any per-track playlist tagging from the original `playTrack`
+ * remains valid.
+ */
 export async function shuffleQueue(): Promise<void> {
   await awaitHydration();
 
@@ -1592,7 +1603,6 @@ export async function shuffleQueue(): Promise<void> {
 
   resetScrobbleCoordination();
   isSettingQueue = true;
-  isShuffling = true;
   positionOffset = 0;
   maxBufferedSeen = 0;
   isFullyBuffered = false;
@@ -1605,20 +1615,22 @@ export async function shuffleQueue(): Promise<void> {
 
     if (rnTracks.length === 0) {
       playbackToastStore.getState().fail(i18n.t('noOfflineTracksInQueue'));
-      await clearQueue();
+      await clearPlayerStateInternal();
       return;
     }
 
     currentChildQueue = filteredQueue;
     playerStore.getState().setQueue(filteredQueue);
 
-    // Replace the RNTP queue atomically, skip to the first track, and play.
-    await TrackPlayer.setQueue(rnTracks);
-    await TrackPlayer.skip(0);
+    await TrackPlayer.reset();
+    await TrackPlayer.add(rnTracks);
     await TrackPlayer.play();
     persistQueue(filteredQueue, 0);
+  } catch (e) {
+    playbackToastStore.getState().fail(
+      e instanceof Error ? e.message : i18n.t('playbackError'),
+    );
   } finally {
     isSettingQueue = false;
-    isShuffling = false;
   }
 }

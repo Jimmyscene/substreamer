@@ -940,19 +940,23 @@ describe('shuffleQueue', () => {
     expect(mockTP.pause).not.toHaveBeenCalled();
   });
 
-  it('shuffles, replaces queue, and plays from index 0', async () => {
+  it('shuffles, replaces queue via reset+add, and plays from index 0', async () => {
     await initPlayer();
     const queue = Array.from({ length: 5 }, (_, i) => makeChild(`t${i}`));
     await playTrack(queue[0], queue);
+    mockTP.pause.mockClear();
+    mockTP.reset.mockClear();
+    mockTP.add.mockClear();
+    mockTP.play.mockClear();
     mockTP.setQueue.mockClear();
-    mockTP.skip.mockClear();
 
     await shuffleQueue();
 
     expect(mockTP.pause).toHaveBeenCalled();
-    expect(mockTP.setQueue).toHaveBeenCalledTimes(1);
-    expect(mockTP.skip).toHaveBeenCalledWith(0);
+    expect(mockTP.reset).toHaveBeenCalledTimes(1);
+    expect(mockTP.add).toHaveBeenCalledTimes(1);
     expect(mockTP.play).toHaveBeenCalled();
+    expect(mockTP.setQueue).not.toHaveBeenCalled();
     expect(mockSetQueue).toHaveBeenCalled();
   });
 });
@@ -2318,7 +2322,7 @@ describe('PlaybackActiveTrackChanged edge branches', () => {
     const activeTrackHandler = eventHandlers[Event.PlaybackActiveTrackChanged];
 
     // We need to trigger ActiveTrackChanged during shuffle.
-    // Since shuffleQueue sets isShuffling=true internally, we simulate by
+    // Since shuffleQueue sets isSettingQueue=true internally, we simulate by
     // making pause() trigger an ActiveTrackChanged with null track.
     mockTP.pause.mockImplementation(async () => {
       activeTrackHandler({ track: null, index: null });
