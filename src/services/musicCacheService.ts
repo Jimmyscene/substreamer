@@ -55,8 +55,8 @@ import {
   type Child,
 } from './subsonicService';
 import {
-  cacheAllSizes,
-  cacheEntityCoverArt,
+  ensureCached,
+  prefetchCoverArt,
 } from './imageCacheService';
 
 /* ------------------------------------------------------------------ */
@@ -692,7 +692,7 @@ export function getTrackQueueStatus(trackId: string): 'queued' | 'downloading' |
 /* ------------------------------------------------------------------ */
 
 function cacheTrackCoverArt(tracks: Child[]): void {
-  cacheEntityCoverArt(tracks);
+  prefetchCoverArt(tracks);
 }
 
 /** Enqueue an album download. */
@@ -756,7 +756,7 @@ export async function enqueueAlbumDownload(albumId: string): Promise<void> {
     }
 
     if (album.coverArt) {
-      cacheAllSizes(album.coverArt).catch(() => { /* non-critical */ });
+      ensureCached(album.coverArt).catch(() => { /* non-critical */ });
     }
     cacheTrackCoverArt(missingSongs);
 
@@ -775,7 +775,7 @@ export async function enqueueAlbumDownload(albumId: string): Promise<void> {
   }
 
   if (album.coverArt) {
-    cacheAllSizes(album.coverArt).catch(() => { /* non-critical */ });
+    ensureCached(album.coverArt).catch(() => { /* non-critical */ });
   }
   cacheTrackCoverArt(album.song);
 
@@ -803,7 +803,7 @@ export async function enqueuePlaylistDownload(playlistId: string): Promise<void>
   if (!playlist?.entry?.length) return;
 
   if (playlist.coverArt) {
-    cacheAllSizes(playlist.coverArt).catch(() => { /* non-critical */ });
+    ensureCached(playlist.coverArt).catch(() => { /* non-critical */ });
   }
   cacheTrackCoverArt(playlist.entry);
 
@@ -1724,16 +1724,16 @@ export function syncCachedItemTracks(
   syncCachedPlaylistTracks(itemId, newTrackIds);
 
   // Belt-and-braces cover-art reconciliation for this offline item only.
-  // `cacheAllSizes` and `cacheEntityCoverArt` are idempotent — instant
+  // `ensureCached` and `prefetchCoverArt` are idempotent — instant
   // no-op when every variant is already on disk (imageCacheService.ts:447),
   // refills only what's missing (e.g. a variant dropped by the
   // reconcileImageCacheAsync zero-byte pass, or an OS cache eviction).
   // This check never walks the full library — only this single cached
   // item and its tracks.
   if (cached.coverArtId) {
-    cacheAllSizes(cached.coverArtId).catch(() => { /* non-critical */ });
+    ensureCached(cached.coverArtId).catch(() => { /* non-critical */ });
   }
-  cacheEntityCoverArt(newSongs);
+  prefetchCoverArt(newSongs);
 
   const hasNewTracks = newSongs.some((t) => !cachedIdSet.has(t.id));
   if (!hasNewTracks) return;

@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { getOverride, mbidOverrideStore } from './mbidOverrideStore';
 import { kvStorage } from './persistence';
 
-import { cacheEntityCoverArt } from '../services/imageCacheService';
+import { prefetchCoverArt } from '../services/imageCacheService';
 import {
   ensureCoverArtAuth,
   getArtist,
@@ -179,7 +179,7 @@ export const artistDetailStore = create<ArtistDetailState>()(
 
           // Proactively cache cover art for new IDs so they survive offline.
           // Skipped during bulk sync — see prefetchCovers contract above.
-          if (prefetchCovers && topSongs.length > 0) cacheEntityCoverArt(topSongs);
+          if (prefetchCovers && topSongs.length > 0) prefetchCoverArt(topSongs);
 
           return entry;
         }, FETCH_TIMEOUT_MS);
@@ -205,7 +205,7 @@ export const artistDetailStore = create<ArtistDetailState>()(
         set({ artists: updates });
 
         // Proactively cache cover art for new IDs so they survive offline
-        if (allTopSongs.length > 0) cacheEntityCoverArt(allTopSongs);
+        if (allTopSongs.length > 0) prefetchCoverArt(allTopSongs);
       },
 
       applyLocalPlay: (songId, albumId, now) => {

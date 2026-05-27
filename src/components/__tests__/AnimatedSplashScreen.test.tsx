@@ -11,8 +11,8 @@ jest.mock('expo-sqlite', () => ({
   },
 }));
 jest.mock('../../services/imageCacheService', () => ({
-  cacheAllSizes: jest.fn(),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn(),
+  prefetchCoverArt: jest.fn(),
   // Phase-3 additions consumed transitively by imageDownloadQueueStore.
   subscribeImageQueueChanges: jest.fn(() => () => {}),
   getImageQueueCycle: jest.fn(() => ({ cycleId: null, cycleScope: null, cycleTotal: 0 })),

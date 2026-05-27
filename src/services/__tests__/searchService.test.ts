@@ -1,8 +1,8 @@
 jest.mock('../subsonicService');
 jest.mock('../../store/persistence/kvStorage', () => require('../../store/persistence/__mocks__/kvStorage'));
 jest.mock('../imageCacheService', () => ({
-  cacheAllSizes: jest.fn().mockResolvedValue(undefined),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn().mockResolvedValue(undefined),
+  prefetchCoverArt: jest.fn(),
 }));
 
 import { ensureCoverArtAuth, search3 } from '../subsonicService';

@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { kvStorage } from './persistence';
 
-import { cacheAllSizes, cacheEntityCoverArt } from '../services/imageCacheService';
+import { ensureCached, prefetchCoverArt } from '../services/imageCacheService';
 import {
   ensureCoverArtAuth,
   getPlaylist,
@@ -67,8 +67,8 @@ export const playlistDetailStore = create<PlaylistDetailState>()(
           // Proactively cache cover art for new IDs so they survive offline.
           // Skipped during bulk sync — see prefetchCovers contract above.
           if (prefetchCovers) {
-            if (data.coverArt) cacheAllSizes(data.coverArt).catch(() => { /* non-critical */ });
-            if (data.entry?.length) cacheEntityCoverArt(data.entry);
+            if (data.coverArt) ensureCached(data.coverArt).catch(() => { /* non-critical */ });
+            if (data.entry?.length) prefetchCoverArt(data.entry);
           }
         }
         return data;

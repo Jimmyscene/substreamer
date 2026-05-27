@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 
 import {
-  cacheAllSizes,
+  ensureCached,
   getCachedImageUri,
 } from '../services/imageCacheService';
 import { getCoverArtUrl } from '../services/subsonicService';
@@ -49,7 +49,7 @@ export function useCachedCoverArt(
 
     const cached = getCachedImageUri(coverArtId, size);
     if (!cached) {
-      cacheAllSizes(coverArtId)
+      ensureCached(coverArtId)
         .then(() => {
           if (cancelled) return;
           const newCached = getCachedImageUri(coverArtId, size);

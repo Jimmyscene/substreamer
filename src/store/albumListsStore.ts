@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { kvStorage } from './persistence';
 
-import { cacheEntityCoverArt } from '../services/imageCacheService';
+import { prefetchCoverArt } from '../services/imageCacheService';
 import {
   ensureCoverArtAuth,
   getFrequentlyPlayedAlbums,
@@ -80,7 +80,7 @@ export const albumListsStore = create<AlbumListsState>()(
           const albums = await getRecentlyAddedAlbums(layoutPreferencesStore.getState().listLength);
           reconcileAlbumRatings(albums);
           set({ recentlyAdded: albums });
-          cacheEntityCoverArt(albums);
+          prefetchCoverArt(albums);
         } catch {
           set({ recentlyAdded: [] });
         }
@@ -92,7 +92,7 @@ export const albumListsStore = create<AlbumListsState>()(
           const albums = await getRecentlyPlayedAlbums(layoutPreferencesStore.getState().listLength);
           reconcileAlbumRatings(albums);
           set({ recentlyPlayed: albums });
-          cacheEntityCoverArt(albums);
+          prefetchCoverArt(albums);
         } catch {
           set({ recentlyPlayed: [] });
         }
@@ -104,7 +104,7 @@ export const albumListsStore = create<AlbumListsState>()(
           const albums = await getFrequentlyPlayedAlbums(layoutPreferencesStore.getState().listLength);
           reconcileAlbumRatings(albums);
           set({ frequentlyPlayed: albums });
-          cacheEntityCoverArt(albums);
+          prefetchCoverArt(albums);
         } catch {
           set({ frequentlyPlayed: [] });
         }
@@ -116,7 +116,7 @@ export const albumListsStore = create<AlbumListsState>()(
           const albums = await getRandomAlbums(layoutPreferencesStore.getState().listLength);
           reconcileAlbumRatings(albums);
           set({ randomSelection: albums });
-          cacheEntityCoverArt(albums);
+          prefetchCoverArt(albums);
         } catch {
           set({ randomSelection: [] });
         }
@@ -141,7 +141,7 @@ export const albumListsStore = create<AlbumListsState>()(
             randomSelection,
             lastRefreshedAt: Date.now(),
           });
-          cacheEntityCoverArt([
+          prefetchCoverArt([
             ...recentlyAdded,
             ...recentlyPlayed,
             ...frequentlyPlayed,

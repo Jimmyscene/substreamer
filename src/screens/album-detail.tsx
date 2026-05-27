@@ -38,7 +38,7 @@ import { useRefreshControlKey } from '../hooks/useRefreshControlKey';
 import { useTheme } from '../hooks/useTheme';
 import { mixHexColors } from '../utils/colors';
 import { useTransitionComplete } from '../hooks/useTransitionComplete';
-import { refreshCachedImage } from '../services/imageCacheService';
+import { refreshCoverArt } from '../services/imageCacheService';
 import { toggleStar } from '../services/moreOptionsService';
 import { enqueueAlbumDownload } from '../services/musicCacheService';
 import { shuffleArray } from '../utils/arrayHelpers';
@@ -156,7 +156,7 @@ export function AlbumDetailScreen() {
       setAlbum(data);
       if (!data) setError(t('albumNotFound'));
       if (isRefresh && data?.id) {
-        refreshCachedImage(data.id, 'album-detail-pull').catch(() => { /* non-critical */ });
+        refreshCoverArt(data.id, 'album-detail-pull').catch(() => { /* non-critical */ });
       }
       await delay;
     } catch (e) {

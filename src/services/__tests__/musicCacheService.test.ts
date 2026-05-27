@@ -103,8 +103,8 @@ jest.mock('../downloadSpeedTracker', () => ({
 }));
 
 jest.mock('../imageCacheService', () => ({
-  cacheAllSizes: jest.fn().mockResolvedValue(undefined),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn().mockResolvedValue(undefined),
+  prefetchCoverArt: jest.fn(),
   getCachedImageUri: jest.fn().mockReturnValue(null),
 }));
 
@@ -237,7 +237,7 @@ import { favoritesStore } from '../../store/favoritesStore';
 import { storageLimitStore } from '../../store/storageLimitStore';
 import { playbackSettingsStore } from '../../store/playbackSettingsStore';
 import { checkStorageLimit } from '../storageService';
-import { cacheAllSizes, cacheEntityCoverArt } from '../imageCacheService';
+import { ensureCached, prefetchCoverArt } from '../imageCacheService';
 import { getDownloadStreamUrl } from '../subsonicService';
 import { beginDownload, clearDownload } from '../downloadSpeedTracker';
 import {
@@ -923,8 +923,8 @@ describe('enqueueAlbumDownload', () => {
       song: [makeChild('t1', { coverArt: 'tc' })],
     });
     await enqueueAlbumDownload('album-1');
-    expect(cacheAllSizes).toHaveBeenCalledWith('ac');
-    expect(cacheEntityCoverArt).toHaveBeenCalled();
+    expect(ensureCached).toHaveBeenCalledWith('ac');
+    expect(prefetchCoverArt).toHaveBeenCalled();
   });
 
   it('uses displayArtist when artist is missing', async () => {
@@ -1541,11 +1541,11 @@ describe('syncCachedItemTracks', () => {
 
   describe('cover-art reconciliation (offline items only)', () => {
     beforeEach(() => {
-      (cacheAllSizes as jest.Mock).mockClear();
-      (cacheEntityCoverArt as jest.Mock).mockClear();
+      (ensureCached as jest.Mock).mockClear();
+      (prefetchCoverArt as jest.Mock).mockClear();
     });
 
-    it('triggers cacheAllSizes for the offline item and cacheEntityCoverArt for tracks when item exists', () => {
+    it('triggers ensureCached for the offline item and prefetchCoverArt for tracks when item exists', () => {
       seedSong(makeCachedSong('s1'));
       seedItem('pl-1', { type: 'playlist', songIds: ['s1'], coverArtId: 'pl-cover' });
 
@@ -1553,9 +1553,9 @@ describe('syncCachedItemTracks', () => {
       syncCachedItemTracks('pl-1', newSongs);
 
       // Item's own cover art reconciled.
-      expect(cacheAllSizes).toHaveBeenCalledWith('pl-cover');
+      expect(ensureCached).toHaveBeenCalledWith('pl-cover');
       // Per-track covers reconciled (idempotent no-op when complete).
-      expect(cacheEntityCoverArt).toHaveBeenCalledWith(newSongs);
+      expect(prefetchCoverArt).toHaveBeenCalledWith(newSongs);
     });
 
     it('runs even when no track changes are detected (heals missing/zero-byte covers)', () => {
@@ -1567,8 +1567,8 @@ describe('syncCachedItemTracks', () => {
       syncCachedItemTracks('pl-1', [makeChild('s1')]);
 
       expect(musicCacheStore.getState().downloadQueue).toHaveLength(0);
-      expect(cacheAllSizes).toHaveBeenCalledWith('pl-cover');
-      expect(cacheEntityCoverArt).toHaveBeenCalledTimes(1);
+      expect(ensureCached).toHaveBeenCalledWith('pl-cover');
+      expect(prefetchCoverArt).toHaveBeenCalledTimes(1);
     });
 
     it('does NOT trigger any cover reconciliation for a non-offline item', () => {
@@ -1578,19 +1578,19 @@ describe('syncCachedItemTracks', () => {
       // The scope guard (line 1425 in musicCacheService) short-circuits
       // before reaching the cover reconciliation. Prevents library-wide
       // fan-out that users explicitly don't want.
-      expect(cacheAllSizes).not.toHaveBeenCalled();
-      expect(cacheEntityCoverArt).not.toHaveBeenCalled();
+      expect(ensureCached).not.toHaveBeenCalled();
+      expect(prefetchCoverArt).not.toHaveBeenCalled();
     });
 
-    it('skips cacheAllSizes when the item has no coverArtId but still reconciles per-song covers', () => {
+    it('skips ensureCached when the item has no coverArtId but still reconciles per-song covers', () => {
       seedSong(makeCachedSong('s1'));
       seedItem('pl-2', { type: 'playlist', songIds: ['s1'] /* no coverArtId */ });
 
       const newSongs = [makeChild('s1')];
       syncCachedItemTracks('pl-2', newSongs);
 
-      expect(cacheAllSizes).not.toHaveBeenCalled();
-      expect(cacheEntityCoverArt).toHaveBeenCalledWith(newSongs);
+      expect(ensureCached).not.toHaveBeenCalled();
+      expect(prefetchCoverArt).toHaveBeenCalledWith(newSongs);
     });
   });
 });

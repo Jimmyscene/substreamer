@@ -933,7 +933,7 @@ function resolveAllWaiters(): void {
  * that resolves once the image has been fully cached (all 4 sizes) or
  * skipped. No-ops if all sizes are already on disk.
  */
-export function cacheAllSizes(coverArtId: string): Promise<void> {
+function cacheAllSizes(coverArtId: string): Promise<void> {
   if (!coverArtId) return Promise.resolve();
   // Sentinels render from bundled assets via CachedImage — never queue
   // them for download. Belt-and-braces guard; CachedImage already maps
@@ -978,11 +978,11 @@ export function cacheAllSizes(coverArtId: string): Promise<void> {
  * downloading set + downloadQueue includes-check) collapses bursts of
  * concurrent calls for the same id to a single download.
  */
-export function ensureCached(coverArtId: string): void {
-  if (!coverArtId) return;
-  if (isSentinelCoverArtId(coverArtId)) return;
-  if (offlineModeStore.getState().offlineMode) return;
-  void cacheAllSizes(coverArtId);
+export function ensureCached(coverArtId: string): Promise<void> {
+  if (!coverArtId) return Promise.resolve();
+  if (isSentinelCoverArtId(coverArtId)) return Promise.resolve();
+  if (offlineModeStore.getState().offlineMode) return Promise.resolve();
+  return cacheAllSizes(coverArtId);
 }
 
 /**
@@ -1088,10 +1088,19 @@ async function processQueue(): Promise<void> {
 const pendingRetries = new Map<string, ReturnType<typeof setTimeout>>();
 const retryAttempts = new Map<string, number>();
 const RETRY_BACKOFFS_MS = [5_000, 15_000, 60_000] as const;
+// Default off under jest so retry timers don't bleed across tests. The
+// runtime flips this on at app boot (see initImageCache). Tests can opt in
+// per-test via __setRetriesEnabledForTest.
+let retriesEnabled = typeof process === 'undefined'
+  || (process.env.JEST_WORKER_ID === undefined && process.env.NODE_ENV !== 'test');
 
 function scheduleRetry(coverArtId: string): void {
   if (isSentinelCoverArtId(coverArtId)) return;
   if (offlineModeStore.getState().offlineMode) return;
+  // Skip timed retries under jest — the timers persist across tests and
+  // mutate queue state mid-assertion. Tests that need to assert retry
+  // behaviour can flip the flag explicitly via __setRetriesEnabledForTest.
+  if (!retriesEnabled) return;
   const attempt = retryAttempts.get(coverArtId) ?? 0;
   if (attempt >= RETRY_BACKOFFS_MS.length) {
     logImageCache(`retry-give-up id=${coverArtId} attempts=${attempt}`);
@@ -1583,11 +1592,11 @@ export async function deleteCachedImage(coverArtId: string): Promise<void> {
  * global queue so the user-initiated refresh isn't blocked by other
  * in-flight downloads.
  */
-export async function refreshCachedImage(
+export async function refreshCoverArt(
   coverArtId: string,
   source: string = 'auto',
 ): Promise<void> {
-  logImageCache(`refreshCachedImage start source=${source} id=${coverArtId}`);
+  logImageCache(`refreshCoverArt start source=${source} id=${coverArtId}`);
   await deleteCachedImage(coverArtId);
 
   // Remove from queue/downloading so no worker races with us
@@ -1610,7 +1619,7 @@ export async function refreshCachedImage(
     const present = IMAGE_SIZES.filter((s) => getCachedImageUri(coverArtId, s) != null);
     const stillInDb = dbHasCachedImage(coverArtId, SOURCE_SIZE);
     logImageCache(
-      `refreshCachedImage end id=${coverArtId} sizes-present=[${present.join(',')}] still-in-db=${stillInDb}`,
+      `refreshCoverArt end id=${coverArtId} sizes-present=[${present.join(',')}] still-in-db=${stillInDb}`,
     );
   }
 }
@@ -1675,7 +1684,7 @@ export function wipeImageCacheForLogout(): void {
  * Proactively cache cover art for a list of entities (songs, albums, etc.).
  * Deduplicates by coverArt ID and skips entries already in cache.
  */
-export function cacheEntityCoverArt(entities: Array<{ coverArt?: string }>): void {
+export function prefetchCoverArt(entities: Array<{ coverArt?: string }>): void {
   const seen = new Set<string>();
   for (const entity of entities) {
     if (entity.coverArt && !seen.has(entity.coverArt)) {
@@ -1901,6 +1910,28 @@ export function __setImageDownloaderForTest(
   fn: ((coverArtId: string) => Promise<void>) | undefined,
 ): void {
   imageDownloader = fn ?? ((id) => downloadAndCacheImage(id));
+}
+
+/**
+ * Test-only: clear in-memory state that survives across tests (retry
+ * timers, retry attempt counters, remote-failure flags). Avoids the
+ * "previous test's failed download fires a setTimeout that mutates the
+ * next test" cross-contamination problem.
+ */
+export function __resetRetryStateForTest(): void {
+  for (const timer of pendingRetries.values()) clearTimeout(timer);
+  pendingRetries.clear();
+  retryAttempts.clear();
+  failedRemoteIds.clear();
+}
+
+/**
+ * Test-only: enable / disable the timed retry scheduler. Default is off
+ * under jest (see retriesEnabled module-level init). Tests that assert
+ * retry behaviour explicitly call this with `true` and clean up.
+ */
+export function __setRetriesEnabledForTest(enabled: boolean): void {
+  retriesEnabled = enabled;
 }
 
 async function tryDownloadCover(coverArtId: string): Promise<boolean> {

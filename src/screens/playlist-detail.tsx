@@ -43,7 +43,7 @@ import { useRefreshControlKey } from '../hooks/useRefreshControlKey';
 import { useTheme } from '../hooks/useTheme';
 import { mixHexColors } from '../utils/colors';
 import { useTransitionComplete } from '../hooks/useTransitionComplete';
-import { cacheAllSizes, refreshCachedImage } from '../services/imageCacheService';
+import { ensureCached, refreshCoverArt } from '../services/imageCacheService';
 import { enqueuePlaylistDownload, syncCachedPlaylistTracks } from '../services/musicCacheService';
 import { playTrack } from '../services/playerService';
 import { updatePlaylistOrder } from '../services/subsonicService';
@@ -182,7 +182,7 @@ export function PlaylistDetailScreen() {
       setPlaylist(data);
       if (!data) setError(t('playlistNotFound'));
       if (isRefresh && data?.id) {
-        refreshCachedImage(data.id, 'playlist-detail-pull').catch(() => { /* non-critical */ });
+        refreshCoverArt(data.id, 'playlist-detail-pull').catch(() => { /* non-critical */ });
       }
       await delay;
     } catch (e) {
@@ -253,7 +253,7 @@ export function PlaylistDetailScreen() {
 
       const fresh = await fetchPlaylist(id);
       if (fresh?.id) {
-        await cacheAllSizes(fresh.id);
+        await ensureCached(fresh.id);
       }
       if (fresh) setPlaylist(fresh);
 

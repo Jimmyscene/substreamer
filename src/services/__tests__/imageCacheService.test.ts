@@ -276,14 +276,15 @@ import {
   getCachedImageUri,
   evictUriCacheEntry,
   deleteCachedVariant,
-  cacheAllSizes,
+  ensureCached,
   getImageCacheStats,
   clearImageCache,
   listCachedImagesAsync,
   deleteCachedImage,
-  refreshCachedImage,
+  refreshCoverArt,
   reconcileImageCacheAsync,
   repairIncompleteImagesAsync,
+  __resetRetryStateForTest,
 } from '../imageCacheService';
 
 const { fetch: mockFetch } = jest.requireMock('expo/fetch') as { fetch: jest.Mock };
@@ -348,7 +349,10 @@ beforeEach(() => {
   mockGetLastReconcileMs.mockReset();
   mockGetLastReconcileMs.mockReturnValue(undefined);
   mockMarkReconcileRan.mockClear();
-  mockFetch.mockClear();
+  // mockReset (not mockClear) so any unused mockResolvedValueOnce queue
+  // from a previous test that early-returned (e.g. offline-gated
+  // ensureCached) doesn't leak into the next test's fetch call.
+  mockFetch.mockReset();
   mockResizeImageToFileAsync.mockClear();
   // Default: success. Target file appears in the mock FS existence map.
   mockResizeImageToFileAsync.mockImplementation(async (_src: string, targetUri: string) => {
@@ -363,6 +367,7 @@ beforeEach(() => {
   setConnectivity({ offlineMode: false, isInternetReachable: true, isServerReachable: true });
   mockAwaitFirstPing.mockClear();
   mockAwaitFirstPing.mockResolvedValue(undefined);
+  __resetRetryStateForTest();
   initImageCache();
 });
 
@@ -456,7 +461,7 @@ describe('evictUriCacheEntry', () => {
 
 describe('cacheAllSizes', () => {
   it('resolves immediately for empty coverArtId', async () => {
-    await expect(cacheAllSizes('')).resolves.toBeUndefined();
+    await expect(ensureCached('')).resolves.toBeUndefined();
   });
 
   it('resolves immediately when all sizes are cached', async () => {
@@ -467,7 +472,7 @@ describe('cacheAllSizes', () => {
       mockFileExistsMap.set(`${subDirKey}/${size}.jpg`, true);
     }
 
-    await expect(cacheAllSizes(id)).resolves.toBeUndefined();
+    await expect(ensureCached(id)).resolves.toBeUndefined();
   });
 });
 
@@ -659,7 +664,7 @@ describe('download pipeline — cacheAllSizes + processQueue', () => {
     });
 
     // Default mockResizeImageToFileAsync in beforeEach handles happy path.
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     // fetch was called for the 600px source
     expect(mockFetch).toHaveBeenCalledWith('https://example.com/cover.jpg');
@@ -673,7 +678,7 @@ describe('download pipeline — cacheAllSizes + processQueue', () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
     // Should not throw; the promise resolves after the failed download
-    await expect(cacheAllSizes(id)).resolves.toBeUndefined();
+    await expect(ensureCached(id)).resolves.toBeUndefined();
   });
 });
 
@@ -686,7 +691,7 @@ describe('downloadSourceImage — response.ok === false', () => {
       headers: { get: () => 'image/jpeg' },
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     // addFile should not have been called (no successful download)
     expect(mockUpsertCachedImage).not.toHaveBeenCalled();
@@ -703,7 +708,7 @@ describe('downloadSourceImage — catch path cleans up .tmp', () => {
       arrayBuffer: () => Promise.reject(new Error('Stream aborted')),
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     // The download failed, addFile should not be called
     expect(mockUpsertCachedImage).not.toHaveBeenCalled();
@@ -720,7 +725,7 @@ describe('generateResizedVariant — success and catch paths', () => {
     // Evict in-memory cache so getCachedImageUri re-checks filesystem
     for (const s of IMAGE_SIZES) evictUriCacheEntry(id, s);
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     // resizeImageToFileAsync was called for each of the 3 resize sizes (300, 150, 50)
     expect(mockResizeImageToFileAsync).toHaveBeenCalledTimes(3);
@@ -738,7 +743,7 @@ describe('generateResizedVariant — success and catch paths', () => {
     // Make every resize call fail — failures must be caught internally.
     mockResizeImageToFileAsync.mockRejectedValue(new Error('Resize crash'));
 
-    await expect(cacheAllSizes(id)).resolves.toBeUndefined();
+    await expect(ensureCached(id)).resolves.toBeUndefined();
   });
 });
 
@@ -784,7 +789,7 @@ describe('repairIncompleteImagesAsync', () => {
   });
 });
 
-describe('refreshCachedImage', () => {
+describe('refreshCoverArt', () => {
   it('deletes existing cache and re-downloads all sizes', async () => {
     const id = 'refresh-me';
     const sdName = subDirName(id);
@@ -800,7 +805,7 @@ describe('refreshCachedImage', () => {
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048)),
     });
 
-    await refreshCachedImage(id);
+    await refreshCoverArt(id);
 
     // deleteCachedImage should have dropped the DB rows for this coverArtId.
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith(id);
@@ -820,9 +825,9 @@ describe('deduplication — concurrent cacheAllSizes calls', () => {
     });
 
     // Call cacheAllSizes concurrently for the same id
-    const p1 = cacheAllSizes(id);
-    const p2 = cacheAllSizes(id);
-    const p3 = cacheAllSizes(id);
+    const p1 = ensureCached(id);
+    const p2 = ensureCached(id);
+    const p3 = ensureCached(id);
 
     await Promise.all([p1, p2, p3]);
 
@@ -891,7 +896,7 @@ describe('downloadSourceImage — dest.exists before rename (line 399)', () => {
       },
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     expect(mockFetch).toHaveBeenCalled();
     expect(mockUpsertCachedImage).toHaveBeenCalled();
@@ -912,7 +917,7 @@ describe('downloadSourceImage — catch cleans up existing tmp (line 411)', () =
       },
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     expect(mockUpsertCachedImage).not.toHaveBeenCalled();
   });
@@ -939,7 +944,7 @@ describe('generateResizedVariant — dest.exists before rename (line 445)', () =
       mockFileExistsMap.set(targetUri.replace(/^file:\/\//, ''), true);
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     expect(mockResizeImageToFileAsync).toHaveBeenCalledTimes(3);
     expect(mockUpsertCachedImage).toHaveBeenCalled();
@@ -963,7 +968,7 @@ describe('generateResizedVariant — catch with existing tmp (line 454)', () => 
       throw new Error('Resize failed');
     });
 
-    await expect(cacheAllSizes(id)).resolves.toBeUndefined();
+    await expect(ensureCached(id)).resolves.toBeUndefined();
   });
 });
 
@@ -981,7 +986,7 @@ describe('generateResizedVariant — 3-failure circuit breaker purges row', () =
     // Each cacheAllSizes pass attempts 3 resizes (300/150/50). The third
     // failure trips the threshold and triggers purgeCoverArtRows — the
     // 600.jpg + DB row are wiped so re-entry runs against a fresh state.
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     expect(mockResizeImageToFileAsync).toHaveBeenCalledTimes(3);
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith(id);
@@ -1006,7 +1011,7 @@ describe('generateResizedVariant — 3-failure circuit breaker purges row', () =
       mockFileExistsMap.set(targetUri.replace(/^file:\/\//, ''), true);
     });
 
-    await cacheAllSizes(id);
+    await ensureCached(id);
 
     expect(mockDeleteCachedImagesForCoverArt).not.toHaveBeenCalledWith(id);
     expect(mockDbRows.has(mockDbKey(id, 600))).toBe(true);
@@ -1058,7 +1063,7 @@ describe('resolveAllWaiters with pending resolvers (line 259)', () => {
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(64)),
     })));
 
-    const promise = cacheAllSizes('pending-clear');
+    const promise = ensureCached('pending-clear');
 
     // Allow microtasks to start the queue processing
     await new Promise((r) => setTimeout(r, 10));
@@ -1455,8 +1460,8 @@ describe('sentinel cover-art IDs — sweep + guards', () => {
   });
 
   it('cacheAllSizes is a no-op for sentinel IDs — no queue push, no fetch', async () => {
-    await cacheAllSizes(STARRED);
-    await cacheAllSizes(VARIOUS);
+    await ensureCached(STARRED);
+    await ensureCached(VARIOUS);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockUpsertCachedImage).not.toHaveBeenCalled();
   });
@@ -1476,7 +1481,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     });
 
-    await cacheAllSizes('dead-album');
+    await ensureCached('dead-album');
 
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith('dead-album');
     expect(mockDbRows.has(mockDbKey('dead-album', 600))).toBe(false);
@@ -1494,7 +1499,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     });
 
-    await cacheAllSizes('dead-album');
+    await ensureCached('dead-album');
 
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith('dead-album');
   });
@@ -1508,7 +1513,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     });
 
-    await cacheAllSizes('flaky-album');
+    await ensureCached('flaky-album');
 
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith('flaky-album');
     expect(mockDbRows.has(mockDbKey('flaky-album', 600))).toBe(false);
@@ -1524,7 +1529,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     });
 
-    await cacheAllSizes('flaky-album');
+    await ensureCached('flaky-album');
 
     expect(mockDeleteCachedImagesForCoverArt).not.toHaveBeenCalledWith('flaky-album');
     expect(mockDbRows.has(mockDbKey('flaky-album', 600))).toBe(true);
@@ -1540,7 +1545,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     });
 
-    await cacheAllSizes('flaky-album');
+    await ensureCached('flaky-album');
 
     expect(mockDeleteCachedImagesForCoverArt).not.toHaveBeenCalledWith('flaky-album');
     expect(mockDbRows.has(mockDbKey('flaky-album', 600))).toBe(true);
@@ -1553,7 +1558,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
     seedDbRow({ coverArtId: 'unreachable-album', size: 600 });
     mockFetch.mockRejectedValueOnce(new Error('Network request failed'));
 
-    await cacheAllSizes('unreachable-album');
+    await ensureCached('unreachable-album');
 
     expect(mockDeleteCachedImagesForCoverArt).not.toHaveBeenCalledWith('unreachable-album');
     expect(mockDbRows.has(mockDbKey('unreachable-album', 600))).toBe(true);
@@ -1569,7 +1574,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => { throw new Error('disk full'); },
     });
 
-    await cacheAllSizes('io-fail-album');
+    await ensureCached('io-fail-album');
 
     expect(mockDeleteCachedImagesForCoverArt).toHaveBeenCalledWith('io-fail-album');
   });
@@ -1583,7 +1588,7 @@ describe('downloadSourceImage — connectivity-gated purge', () => {
       arrayBuffer: async () => { throw new Error('disk full'); },
     });
 
-    await cacheAllSizes('io-fail-album');
+    await ensureCached('io-fail-album');
 
     expect(mockDeleteCachedImagesForCoverArt).not.toHaveBeenCalledWith('io-fail-album');
   });
@@ -1733,7 +1738,7 @@ describe('coverArtPathKey — FS-hostile coverArtId sanitisation', () => {
       arrayBuffer: async () => new ArrayBuffer(128),
     });
 
-    await cacheAllSizes(raw);
+    await ensureCached(raw);
 
     // The upsert went under the ORIGINAL coverArtId (SQL stays canonical).
     expect(mockUpsertCachedImage).toHaveBeenCalledWith(

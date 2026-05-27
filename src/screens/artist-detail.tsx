@@ -39,7 +39,7 @@ import { useRefreshControlKey } from '../hooks/useRefreshControlKey';
 import { useTheme } from '../hooks/useTheme';
 import { mixHexColors } from '../utils/colors';
 import { useTransitionComplete } from '../hooks/useTransitionComplete';
-import { refreshCachedImage } from '../services/imageCacheService';
+import { refreshCoverArt } from '../services/imageCacheService';
 import { PillToggle } from '../components/PillToggle';
 import { playAllByArtist, playMoreByArtist, toggleStar } from '../services/moreOptionsService';
 import { shuffleArray } from '../utils/arrayHelpers';
@@ -182,7 +182,7 @@ export function ArtistDetailScreen() {
         setTopSongs(entry.topSongs);
         setBiography(entry.biography);
         if (isRefresh && entry.artist.id) {
-          refreshCachedImage(entry.artist.id, 'artist-detail-pull').catch(() => { /* non-critical */ });
+          refreshCoverArt(entry.artist.id, 'artist-detail-pull').catch(() => { /* non-critical */ });
         }
       }
       await delay;

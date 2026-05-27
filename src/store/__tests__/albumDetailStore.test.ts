@@ -1,8 +1,8 @@
 jest.mock('../persistence/kvStorage', () => require('../persistence/__mocks__/kvStorage'));
 jest.mock('../../services/subsonicService');
 jest.mock('../../services/imageCacheService', () => ({
-  cacheAllSizes: jest.fn().mockResolvedValue(undefined),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn().mockResolvedValue(undefined),
+  prefetchCoverArt: jest.fn(),
 }));
 // Skip real expo-sqlite for detailTables — the store's own behavior around
 // in-memory state is what matters for these tests. Individual persistence

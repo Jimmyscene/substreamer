@@ -2,8 +2,8 @@ jest.mock('../persistence/kvStorage', () => require('../persistence/__mocks__/kv
 jest.mock('../../services/subsonicService');
 jest.mock('../../services/musicbrainzService');
 jest.mock('../../services/imageCacheService', () => ({
-  cacheAllSizes: jest.fn().mockResolvedValue(undefined),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn().mockResolvedValue(undefined),
+  prefetchCoverArt: jest.fn(),
 }));
 jest.mock('../layoutPreferencesStore', () => ({
   layoutPreferencesStore: {

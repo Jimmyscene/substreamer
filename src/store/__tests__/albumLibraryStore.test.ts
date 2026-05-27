@@ -1,7 +1,7 @@
 jest.mock('../persistence/kvStorage', () => require('../persistence/__mocks__/kvStorage'));
 jest.mock('../../services/subsonicService');
 jest.mock('../../services/imageCacheService', () => ({
-  cacheEntityCoverArt: jest.fn(),
+  prefetchCoverArt: jest.fn(),
 }));
 
 import {

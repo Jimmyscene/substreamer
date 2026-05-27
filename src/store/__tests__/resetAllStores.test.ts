@@ -14,8 +14,8 @@ jest.mock('../../services/playerService', () => ({}));
 jest.mock('../../services/moreOptionsService', () => ({}));
 jest.mock('../../services/scrobbleService', () => ({}));
 jest.mock('../../services/imageCacheService', () => ({
-  cacheAllSizes: jest.fn().mockResolvedValue(undefined),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn().mockResolvedValue(undefined),
+  prefetchCoverArt: jest.fn(),
   teardownImageCache: jest.fn(),
   wipeImageCacheForLogout: jest.fn(),
 }));

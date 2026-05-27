@@ -30,7 +30,7 @@ import {
   clearImageCache,
   deleteCachedImage,
   listCachedImagesAsync,
-  refreshCachedImage,
+  refreshCoverArt,
   type CachedImageEntry,
 } from '../services/imageCacheService';
 import { offlineModeStore } from '../store/offlineModeStore';
@@ -262,7 +262,7 @@ export function ImageCacheBrowserScreen() {
   const handleRefresh = useCallback(
     (coverArtId: string) => {
       setItemStatus(coverArtId, 'refreshing');
-      refreshCachedImage(coverArtId, 'browser')
+      refreshCoverArt(coverArtId, 'browser')
         .then(() => listCachedImagesAsync('all'))
         .then((result) => {
           // If the row purged itself during refresh (404, gated 5xx, or

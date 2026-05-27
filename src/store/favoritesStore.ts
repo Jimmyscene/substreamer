@@ -5,7 +5,7 @@ import i18n from '../i18n/i18n';
 
 import { kvStorage } from './persistence';
 
-import { cacheAllSizes, cacheEntityCoverArt } from '../services/imageCacheService';
+import { ensureCached, prefetchCoverArt } from '../services/imageCacheService';
 import {
   ensureCoverArtAuth,
   getStarred2,
@@ -92,12 +92,12 @@ export const favoritesStore = create<FavoritesState>()(
           // Proactively cache cover art for new IDs so they survive offline.
           // Skipped during bulk sync — see prefetchCovers contract above.
           if (prefetchCovers) {
-            cacheEntityCoverArt(songs);
+            prefetchCoverArt(songs);
             for (const a of albums) {
-              if (a.coverArt) cacheAllSizes(a.coverArt).catch(() => { /* non-critical */ });
+              if (a.coverArt) ensureCached(a.coverArt).catch(() => { /* non-critical */ });
             }
             for (const a of artists) {
-              if (a.coverArt) cacheAllSizes(a.coverArt).catch(() => { /* non-critical */ });
+              if (a.coverArt) ensureCached(a.coverArt).catch(() => { /* non-critical */ });
             }
           }
         } catch (e) {

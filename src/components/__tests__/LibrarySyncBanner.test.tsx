@@ -13,8 +13,8 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('../../services/imageCacheService', () => ({
-  cacheAllSizes: jest.fn(),
-  cacheEntityCoverArt: jest.fn(),
+  ensureCached: jest.fn(),
+  prefetchCoverArt: jest.fn(),
 }));
 
 jest.mock('react-native-reanimated', () => {
