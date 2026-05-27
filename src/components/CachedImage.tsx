@@ -201,6 +201,31 @@ export const CachedImage = memo(function CachedImage({
     // retry recovery; they must not clear the retry's remoteUri.
   }, [coverArtId, size, fallbackUri, fadeAnim]);
 
+  /* ---- mount-time fetch (restored: 3aa5fa1 regression) ------------- */
+  // Fires cacheAllSizes immediately on mount when there is no on-disk
+  // file. Bypasses the 150ms debounce that gets repeatedly cancelled by
+  // FlashList's initial measurement mount→unmount churn — without this
+  // the home-screen horizontal scrollers stay on placeholders until the
+  // user scrolls.
+  useEffect(() => {
+    if (!coverArtId) return;
+    if (offlineModeStore.getState().offlineMode) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || currentIdRef.current !== coverArtId) return;
+      if (getCachedImageUri(coverArtId, size) != null) return;
+      cacheAllSizes(coverArtId)
+        .then(() => {
+          if (cancelled || currentIdRef.current !== coverArtId) return;
+          if (getCachedImageUri(coverArtId, size) != null) {
+            setReloadNonce((n) => n + 1);
+          }
+        })
+        .catch(() => { /* non-critical */ });
+    });
+    return () => { cancelled = true; };
+  }, [coverArtId, size]);
+
   /* ---- debounced remote fetch for cache misses --------------------- */
   useEffect(() => {
     if (!coverArtId) return;
