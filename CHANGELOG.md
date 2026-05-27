@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.0.67] - 2026-05-27
+
+- docs(migration-25): refresh comment for post-refactor image cache
+- refactor(image-cache): phase 4 — queue state merge + drop redundant Async suffix
+- refactor(image-cache): phase 3 — fold wipeImageCacheForLogout into clearImageCache
+- refactor(image-cache): phase 2 — consumer migration to clean API names
+- refactor(image-cache): phase 1 — rebuild CachedImage on 3-state model
 ## [8.0.66] - 2026-05-27
 
 - fix first load image cache and remove some packages from expo exclusions as expo recommended versions have caught up
