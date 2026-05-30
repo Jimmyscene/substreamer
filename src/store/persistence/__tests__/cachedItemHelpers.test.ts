@@ -56,12 +56,13 @@ describe('isPartialAlbum', () => {
     }))).toBe(false);
   });
 
-  it('defensive: treats expectedSongCount == 1 with at least 1 song as partial (fallback correction)', () => {
-    // ensurePartialAlbumEdge sets expectedSongCount = 1 as a fallback when
-    // albumDetailStore has no cached entry. Classifying such a row as
-    // "complete" would strand the user's ability to top up. Prefer false-
-    // positive partial; top-up will refetch and self-correct.
-    expect(isPartialAlbum(makeItem({ songIds: ['s1'], expectedSongCount: 1 }))).toBe(true);
+  it('treats a real single-track album (1 of 1 downloaded) as complete — fixes #159', () => {
+    // ensurePartialAlbumEdge now fetches the authoritative song count
+    // from the server when the album-detail store is empty, so an
+    // expectedSongCount of 1 always reflects a real single-track album.
+    // The previous defensive heuristic that flagged this case as partial
+    // is gone — it was misclassifying genuine singles.
+    expect(isPartialAlbum(makeItem({ songIds: ['s1'], expectedSongCount: 1 }))).toBe(false);
   });
 
   it('defensive: expectedSongCount 0 with 0 songs is NOT partial (empty album edge case)', () => {

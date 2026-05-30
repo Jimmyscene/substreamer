@@ -959,39 +959,64 @@ function buildCachedItemEnvelope(
  * Ensure a partial-album `cached_items` row + edge exist for songs
  * downloaded from a non-album item. No-op when the triggering item IS the
  * album itself.
+ *
+ * Authoritative track count comes from the server: when albumDetailStore
+ * doesn't already have this album, we fetch it (we're online — we're
+ * downloading) and use `album.song.length`. The historical `?? 1`
+ * fallback is kept only for the cases where the fetch fails outright
+ * (server unreachable, album deleted between getSong and getAlbum) so
+ * we still stitch the edge in; the next refresh path corrects the count.
  */
-function ensurePartialAlbumEdge(
+async function ensurePartialAlbumEdge(
   triggerItemId: string,
   triggerItemType: DownloadQueueItem['type'],
   song: Child,
-): void {
+): Promise<void> {
   if (!song.albumId) return;
   if (triggerItemType === 'album' && triggerItemId === song.albumId) return;
 
+  // Resolve the album's authoritative track count once up-front. Memory
+  // hit when albumDetailStore already has it (the common case — user
+  // visited the album-detail screen, or a prior ensurePartialAlbumEdge
+  // for the same album already populated it). One getAlbum call when
+  // it doesn't. `fetchAlbum` caches the result in albumDetailStore so
+  // subsequent calls in the same session reuse it.
+  const albumId = song.albumId;
+  let cachedAlbum = albumDetailStore.getState().albums[albumId];
+  if (!cachedAlbum) {
+    // `prefetchCovers: false` — we're inside a song-download hot path
+    // and don't want to kick off hundreds of cover-art downloads here.
+    // The album-detail screen visit re-fetches with covers when needed.
+    // try/catch (not .catch) so a sync throw or a non-thenable return
+    // both land in the no-op branch without aborting the edge stitch.
+    let fetched: unknown = null;
+    try {
+      fetched = await albumDetailStore
+        .getState()
+        .fetchAlbum(albumId, { prefetchCovers: false });
+    } catch { /* fall through to the unknown-count branch */ }
+    if (fetched) cachedAlbum = albumDetailStore.getState().albums[albumId];
+  }
+  const authoritativeCount = cachedAlbum?.album?.song?.length;
+
   const state = musicCacheStore.getState();
-  const existing = state.cachedItems[song.albumId];
+  const existing = state.cachedItems[albumId];
 
   if (existing) {
-    // Opportunistically refresh expectedSongCount if the album detail store
-    // has a fresher, larger count than the existing row — corrects the
-    // `expectedSongCount = 1` fallback taken at partial-row creation when
-    // albumDetailStore was empty. Also refresh `rawJson` if the existing
-    // row is still missing its envelope and we can produce one now.
-    const cachedAlbumForRefresh = albumDetailStore.getState().albums[song.albumId];
-    const freshCount = cachedAlbumForRefresh?.album?.song?.length;
+    // Refresh expectedSongCount to match the authoritative server count
+    // when we have it (corrects any historical `?? 1` write). Also
+    // refresh `rawJson` if the existing row is missing its envelope.
     const envelope = existing.rawJson
       ? undefined
-      : buildCachedItemEnvelope(song.albumId, 'album');
+      : buildCachedItemEnvelope(albumId, 'album');
     if (
-      (freshCount !== undefined && freshCount > existing.expectedSongCount) ||
+      (authoritativeCount !== undefined && authoritativeCount !== existing.expectedSongCount) ||
       envelope !== undefined
     ) {
       musicCacheStore.getState().upsertCachedItem({
         ...existing,
         expectedSongCount:
-          freshCount !== undefined && freshCount > existing.expectedSongCount
-            ? freshCount
-            : existing.expectedSongCount,
+          authoritativeCount !== undefined ? authoritativeCount : existing.expectedSongCount,
         rawJson: envelope ?? existing.rawJson,
       });
     }
@@ -999,16 +1024,16 @@ function ensurePartialAlbumEdge(
     // Append this song as a new edge if not already present.
     if (existing.songIds.includes(song.id)) return;
     const nextPosition = existing.songIds.length + 1;
-    insertCachedItemSong(song.albumId, nextPosition, song.id);
-    registerTrackToItem(song.id, song.albumId);
+    insertCachedItemSong(albumId, nextPosition, song.id);
+    registerTrackToItem(song.id, albumId);
     musicCacheStore.setState((prev) => {
-      const prevItem = prev.cachedItems[song.albumId!];
+      const prevItem = prev.cachedItems[albumId];
       if (!prevItem) return prev;
       if (prevItem.songIds.includes(song.id)) return prev;
       return {
         cachedItems: {
           ...prev.cachedItems,
-          [song.albumId!]: {
+          [albumId]: {
             ...prevItem,
             songIds: [...prevItem.songIds, song.id],
           },
@@ -1019,13 +1044,12 @@ function ensurePartialAlbumEdge(
   }
 
   // Otherwise create a fresh partial-album row.
-  const cachedAlbum = albumDetailStore.getState().albums[song.albumId];
-  const expectedSongCount = cachedAlbum?.album?.song?.length ?? 1;
+  const expectedSongCount = authoritativeCount ?? 1;
   const now = Date.now();
 
   musicCacheStore.getState().upsertCachedItem(
     {
-      itemId: song.albumId,
+      itemId: albumId,
       type: 'album',
       name: song.album ?? cachedAlbum?.album?.name ?? 'Unknown',
       artist: song.artist ?? cachedAlbum?.album?.artist,
@@ -1034,12 +1058,12 @@ function ensurePartialAlbumEdge(
       parentAlbumId: undefined,
       lastSyncAt: now,
       downloadedAt: now,
-      rawJson: buildCachedItemEnvelope(song.albumId, 'album'),
+      rawJson: buildCachedItemEnvelope(albumId, 'album'),
     },
     [song.id],
   );
-  insertCachedItemSong(song.albumId, 1, song.id);
-  registerTrackToItem(song.id, song.albumId);
+  insertCachedItemSong(albumId, 1, song.id);
+  registerTrackToItem(song.id, albumId);
 }
 
 /**
@@ -1148,7 +1172,7 @@ async function downloadItem(queueItem: DownloadQueueItem, myId: number): Promise
           trackUriMap.set(song.id, resolveSongFile(result).uri);
 
           // Also ensure the partial-album edge (for non-album items).
-          ensurePartialAlbumEdge(queueItem.itemId, queueItem.type, song);
+          await ensurePartialAlbumEdge(queueItem.itemId, queueItem.type, song);
 
           musicCacheStore.getState().addBytes(result.bytes);
           musicCacheStore.getState().addFiles(1);

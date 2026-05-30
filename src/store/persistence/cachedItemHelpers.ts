@@ -7,22 +7,18 @@ import {
  * True when an album `cached_items` row represents a partial download —
  * fewer songs on disk than the album actually contains.
  *
- * Also true defensively when `expectedSongCount <= 1` but at least one song
- * is edged: the `ensurePartialAlbumEdge` fallback sets `expectedSongCount = 1`
- * when the album detail store has no cached entry, which would misclassify
- * a real multi-track album as "complete". We prefer a false-positive partial
- * (user sees an orange icon) over a false-negative complete (user never
- * gets the option to top up). A subsequent top-up attempt refetches and
- * self-corrects.
+ * `expectedSongCount` is authoritative: `ensurePartialAlbumEdge` now
+ * fetches the album from the server when the album-detail store doesn't
+ * yet have it, so the count always reflects the real album size. No
+ * heuristic is needed to distinguish a real single-track album from a
+ * fallback estimate — fixes #159.
  *
  * Songs and playlists never classify as partial — songs are 1/1 by
  * definition, playlists download atomically in v2.
  */
 export function isPartialAlbum(item: CachedItemRow): boolean {
   if (item.type !== 'album') return false;
-  if (item.songIds.length < item.expectedSongCount) return true;
-  if (item.expectedSongCount <= 1 && item.songIds.length >= 1) return true;
-  return false;
+  return item.songIds.length < item.expectedSongCount;
 }
 
 /** Convenience inverse of `isPartialAlbum` for albums. */

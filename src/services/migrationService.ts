@@ -1980,6 +1980,71 @@ const MIGRATION_TASKS: MigrationTask[] = [
     },
   },
 
+  {
+    id: 27,
+    name: 'Backfill cached_items.expected_song_count from album_details',
+    run: async (log) => {
+      // Pre-#159 fix, `ensurePartialAlbumEdge` wrote `expected_song_count = 1`
+      // when albumDetailStore didn't yet have the album, indistinguishable
+      // from a genuine single-track album. The runtime now fetches the
+      // authoritative count when stitching the partial-album row; this
+      // migration corrects any historical rows whose count is stale by
+      // sourcing the real value from the locally cached album_details
+      // envelope.
+      //
+      // Rows for which no album_details exists are left untouched — the
+      // next track download or detail-screen visit will refresh via the
+      // runtime path. Network fetch from here would gate the migration
+      // on connectivity, which the splash flow shouldn't depend on.
+      try {
+        const { getDb } = require('./../store/persistence/db') as {
+          getDb: () => any;
+        };
+        const db = getDb();
+        if (db === null) {
+          log('[m27] db unavailable — skipping');
+          return;
+        }
+        const details = db.getAllSync(
+          'SELECT id, json FROM album_details;',
+        ) as { id: string; json: string }[];
+        if (details.length === 0) {
+          log('[m27] no album_details rows — nothing to backfill');
+          return;
+        }
+        let updated = 0;
+        let unchanged = 0;
+        db.withTransactionSync(() => {
+          for (const row of details) {
+            let realCount: number | null = null;
+            try {
+              const parsed = JSON.parse(row.json);
+              if (Array.isArray(parsed?.song)) realCount = parsed.song.length;
+            } catch {
+              continue;
+            }
+            if (realCount === null) continue;
+            const res = db.runSync(
+              `UPDATE cached_items
+                  SET expected_song_count = ?
+                WHERE item_id = ?
+                  AND type = 'album'
+                  AND expected_song_count != ?;`,
+              [realCount, row.id, realCount],
+            );
+            if ((res.changes ?? 0) > 0) updated++;
+            else unchanged++;
+          }
+        });
+        log(
+          `[m27] backfilled expectedSongCount on ${updated} cached_items rows (${unchanged} already accurate)`,
+        );
+      } catch (e) {
+        log(`[m27] backfill failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+  },
+
   // -------------------------------------------------------------------
   // TEMPLATE – How to add a new migration task:
   //
