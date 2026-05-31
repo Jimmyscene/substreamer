@@ -13,15 +13,9 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import Animated, {
-  Easing,
   Extrapolation,
-  cancelAnimation,
   interpolate,
   useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  runOnJS,
   type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +30,7 @@ import { PlayerProgressBar } from './PlayerProgressBar';
 import { QueueItemRow } from './QueueItemRow';
 import { RepeatButton } from './RepeatButton';
 import { ShuffleButton } from './ShuffleButton';
+import { ShuffleOverlay } from './ShuffleOverlay';
 import { SkipIntervalButton } from './SkipIntervalButton';
 import { SleepTimerButton } from './SleepTimerButton';
 import { SleepTimerCapsule } from './SleepTimerCapsule';
@@ -44,17 +39,14 @@ import { useCanSkip } from '../hooks/useCanSkip';
 import { useImagePalette } from '../hooks/useImagePalette';
 import { mixHexColors } from '../utils/colors';
 import { useIsStarred } from '../hooks/useIsStarred';
+import { usePlayerActions } from '../hooks/usePlayerActions';
+import { useShuffleOverlay } from '../hooks/useShuffleOverlay';
 import { useTheme } from '../hooks/useTheme';
-import { useThemedAlert } from '../hooks/useThemedAlert';
 import { toggleStar } from '../services/moreOptionsService';
 import {
-  clearQueue,
   retryPlayback,
-  seekTo,
-  shuffleQueue,
   skipToNext,
   skipToPrevious,
-  skipToTrack,
   togglePlayPause,
 } from '../services/playerService';
 import { sanitizeBiographyText } from '../utils/formatters';
@@ -62,7 +54,6 @@ import { type Child } from '../services/subsonicService';
 import { usePlayerAlbumInfo } from '../hooks/usePlayerAlbumInfo';
 import { usePlayerLyrics } from '../hooks/usePlayerLyrics';
 import { playbackSettingsStore } from '../store/playbackSettingsStore';
-import { createShareStore } from '../store/createShareStore';
 import { moreOptionsStore } from '../store/moreOptionsStore';
 import { offlineModeStore } from '../store/offlineModeStore';
 import { playerStore } from '../store/playerStore';
@@ -82,7 +73,6 @@ export function ExpandedPlayerView({
 }: ExpandedPlayerViewProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const { alert } = useThemedAlert();
   const insets = useSafeAreaInsets();
   const currentTrack = playerStore((s) => s.currentTrack);
   const currentTrackIndex = playerStore((s) => s.currentTrackIndex);
@@ -214,71 +204,20 @@ export function ExpandedPlayerView({
     tabletLayoutStore.getState().setPlayerExpanded(false);
   }, []);
 
-  const handleSeek = useCallback((seconds: number) => {
-    seekTo(seconds);
-  }, []);
+  const {
+    handleSeek,
+    handleQueueItemPress,
+    handleQueueItemLongPress,
+    handleShareQueue,
+    handleClearQueue,
+  } = usePlayerActions({ source: 'playerexpanded' });
 
-  const handleQueueItemPress = useCallback((index: number) => {
-    skipToTrack(index);
-  }, []);
-
-  const handleQueueItemLongPress = useCallback((track: Child) => {
-    moreOptionsStore.getState().show({ type: 'song', item: track }, 'playerexpanded');
-  }, []);
-
-  const handleClearQueue = useCallback(() => {
-    alert(
-      t('clearQueue'),
-      t('clearQueueMessage'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('clear'), style: 'destructive', onPress: clearQueue },
-      ],
-    );
-  }, []);
-
-  const handleShareQueue = useCallback(() => {
-    const ids = queue.map((t) => t.id);
-    if (ids.length > 0) {
-      createShareStore.getState().showQueue(ids);
-    }
-  }, [queue]);
-
-  // --- Shuffle overlay ---
-  const [shuffling, setShuffling] = useState(false);
-  const shuffleOverlayOpacity = useSharedValue(0);
-  const spinAnim = useSharedValue(0);
-
-  const shuffleOverlayStyle = useAnimatedStyle(() => ({
-    opacity: shuffleOverlayOpacity.value,
-  }));
-
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${interpolate(spinAnim.value, [0, 1], [0, 360])}deg` }],
-  }));
-
-  const handleShuffle = useCallback(async () => {
-    if (shuffling) return;
-    setShuffling(true);
-    spinAnim.value = 0;
-
-    shuffleOverlayOpacity.value = withTiming(1, { duration: 250 });
-    spinAnim.value = withRepeat(
-      withTiming(1, { duration: 800, easing: Easing.linear }),
-      -1,
-    );
-
-    const MIN_DISPLAY = 2000;
-    await Promise.all([
-      shuffleQueue(),
-      new Promise<void>((r) => setTimeout(r, MIN_DISPLAY)),
-    ]);
-
-    cancelAnimation(spinAnim);
-    shuffleOverlayOpacity.value = withTiming(0, { duration: 300 }, (finished) => {
-      if (finished) runOnJS(setShuffling)(false);
-    });
-  }, [shuffling, shuffleOverlayOpacity, spinAnim]);
+  const {
+    shuffling,
+    handleShuffle,
+    overlayStyle: shuffleOverlayStyle,
+    spinStyle,
+  } = useShuffleOverlay();
 
   // --- Queue rendering ---
 
@@ -439,7 +378,11 @@ export function ExpandedPlayerView({
               {/* Transport controls */}
               <View style={styles.controls}>
                 <View style={styles.controlSideLeft}>
-                  <PlaybackRateButton />
+                  <ShuffleButton
+                    onPress={handleShuffle}
+                    disabled={shuffling || queue.length < 2}
+                    size={28}
+                  />
                 </View>
 
                 <View style={styles.transportControls}>
@@ -451,10 +394,6 @@ export function ExpandedPlayerView({
                   >
                     <Ionicons name="play-back" size={32} color={canSkipPrevious ? colors.textPrimary : colors.textSecondary} />
                   </Pressable>
-
-                  {showSkipInterval && (
-                    <SkipIntervalButton direction="backward" size={32} />
-                  )}
 
                   <Pressable
                     onPress={togglePlayPause}
@@ -476,10 +415,6 @@ export function ExpandedPlayerView({
                     )}
                   </Pressable>
 
-                  {showSkipInterval && (
-                    <SkipIntervalButton direction="forward" size={32} />
-                  )}
-
                   <Pressable
                     onPress={skipToNext}
                     hitSlop={12}
@@ -495,16 +430,25 @@ export function ExpandedPlayerView({
                 </View>
               </View>
 
-              {/* Secondary controls row — sleep timer button */}
-              {showSleepTimer && (
-                <View style={styles.secondaryControls}>
-                  <View style={styles.controlSideLeft}>
-                    <SleepTimerButton />
-                  </View>
-                  <View style={styles.secondaryCenter} />
-                  <View style={styles.controlSideRight} />
+              {/* Secondary controls row — sleep timer, then skip-interval
+                  buttons under prev/next with the playback rate between them */}
+              <View style={styles.secondaryControls}>
+                <View style={styles.controlSideLeft}>
+                  {showSleepTimer && <SleepTimerButton />}
                 </View>
-              )}
+                <View style={[styles.secondaryCenter, styles.secondaryCenterRow]}>
+                  {showSkipInterval && (
+                    <SkipIntervalButton direction="backward" size={32} />
+                  )}
+                  <View style={styles.secondaryRateSlot}>
+                    <PlaybackRateButton />
+                  </View>
+                  {showSkipInterval && (
+                    <SkipIntervalButton direction="forward" size={32} />
+                  )}
+                </View>
+                <View style={styles.controlSideRight} />
+              </View>
 
               {/* Quality badge */}
               {qualityLabel && (
@@ -654,21 +598,12 @@ export function ExpandedPlayerView({
         </View>
 
         {/* Shuffle overlay */}
-        {shuffling && (
-          <Animated.View
-            style={[styles.shuffleOverlay, shuffleOverlayStyle]}
-            pointerEvents="auto"
-          >
-            <View style={[styles.shuffleCard, { backgroundColor: colors.card }]}>
-              <Animated.View style={spinStyle}>
-                <Ionicons name="shuffle" size={32} color={colors.primary} />
-              </Animated.View>
-              <Text style={[styles.shuffleText, { color: colors.textPrimary }]}>
-                Shuffling\u2026
-              </Text>
-            </View>
-          </Animated.View>
-        )}
+        <ShuffleOverlay
+          visible={shuffling}
+          overlayStyle={shuffleOverlayStyle}
+          spinStyle={spinStyle}
+          colors={colors}
+        />
       </View>
     </Animated.View>
   );
@@ -831,10 +766,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 36,
+    marginTop: 20,
     marginBottom: 8,
   },
   secondaryCenter: {
     width: 248,
+  },
+  secondaryCenterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+  },
+  secondaryRateSlot: {
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controlSideLeft: {
     flex: 1,
@@ -926,26 +872,6 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     padding: 4,
-  },
-
-  /* --- Shuffle overlay --- */
-  shuffleOverlay: {
-    ...absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-  },
-  shuffleCard: {
-    borderRadius: 16,
-    paddingHorizontal: 32,
-    paddingVertical: 24,
-    alignItems: 'center',
-    gap: 12,
-  },
-  shuffleText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 
   pressed: {
