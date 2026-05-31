@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AlbumInfoContent } from './AlbumInfoContent';
 import { LyricsContent } from './LyricsContent';
+import { BookmarkButton } from './BookmarkButton';
 import { CachedImage } from './CachedImage';
 import { FavoriteButton } from './FavoriteButton';
 import { MarqueeText } from './MarqueeText';
@@ -446,7 +447,9 @@ export function ExpandedPlayerView({
                     <SkipIntervalButton direction="forward" size={32} />
                   )}
                 </View>
-                <View style={styles.controlSideRight} />
+                <View style={styles.controlSideRight}>
+                  <BookmarkButton style={styles.favoriteButton} />
+                </View>
               </View>
 
               {/* Quality badge */}
