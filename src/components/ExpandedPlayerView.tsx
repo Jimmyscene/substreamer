@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlbumInfoContent } from './AlbumInfoContent';
 import { LyricsContent } from './LyricsContent';
 import { CachedImage } from './CachedImage';
+import { FavoriteButton } from './FavoriteButton';
 import { MarqueeText } from './MarqueeText';
 import { MoreOptionsButton } from './MoreOptionsButton';
 import { PlaybackRateButton } from './PlaybackRateButton';
@@ -38,11 +39,9 @@ import { closeOpenRow } from './SwipeableRow';
 import { useCanSkip } from '../hooks/useCanSkip';
 import { useImagePalette } from '../hooks/useImagePalette';
 import { mixHexColors } from '../utils/colors';
-import { useIsStarred } from '../hooks/useIsStarred';
 import { usePlayerActions } from '../hooks/usePlayerActions';
 import { useShuffleOverlay } from '../hooks/useShuffleOverlay';
 import { useTheme } from '../hooks/useTheme';
-import { toggleStar } from '../services/moreOptionsService';
 import {
   retryPlayback,
   skipToNext,
@@ -342,7 +341,7 @@ export function ExpandedPlayerView({
                     }
                     color={colors.textPrimary}
                   />
-                  <ExpandedFavoriteButton trackId={currentTrack.id} colors={colors} />
+                  <FavoriteButton trackId={currentTrack.id} style={styles.favoriteButton} />
                 </View>
                 <Text
                   style={[styles.trackArtist, { color: colors.textSecondary }]}
@@ -608,47 +607,6 @@ export function ExpandedPlayerView({
     </Animated.View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Favorite button                                                    */
-/* ------------------------------------------------------------------ */
-
-const ExpandedFavoriteButton = memo(function ExpandedFavoriteButton({
-  trackId,
-  colors,
-}: {
-  trackId: string;
-  colors: { red: string; textSecondary: string };
-}) {
-  const { t } = useTranslation();
-  const starred = useIsStarred('song', trackId);
-  const offlineMode = offlineModeStore((s) => s.offlineMode);
-
-  const handleToggle = useCallback(() => {
-    toggleStar('song', trackId);
-  }, [trackId]);
-
-  return (
-    <Pressable
-      onPress={handleToggle}
-      disabled={offlineMode}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={starred ? t('removeFromFavorites') : t('addToFavorites')}
-      style={({ pressed }) => [
-        styles.favoriteButton,
-        pressed && !offlineMode && styles.pressed,
-        offlineMode && styles.disabled,
-      ]}
-    >
-      <Ionicons
-        name={starred ? 'heart' : 'heart-outline'}
-        size={24}
-        color={starred ? colors.red : colors.textSecondary}
-      />
-    </Pressable>
-  );
-});
 
 
 /* ------------------------------------------------------------------ */

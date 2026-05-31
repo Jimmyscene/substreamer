@@ -22,7 +22,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BookmarkButton } from '../components/BookmarkButton';
 import { CachedImage } from '../components/CachedImage';
+import { FavoriteButton } from '../components/FavoriteButton';
 import { EmptyState } from '../components/EmptyState';
 import { MarqueeText } from '../components/MarqueeText';
 import { MoreOptionsButton } from '../components/MoreOptionsButton';
@@ -38,12 +40,9 @@ import { UpNextPanel } from '../components/UpNextPanel';
 import { type ThemeColors } from '../constants/theme';
 import { useCanSkip } from '../hooks/useCanSkip';
 import { useImagePalette } from '../hooks/useImagePalette';
-import { useIsStarred } from '../hooks/useIsStarred';
 import { usePlayerActions } from '../hooks/usePlayerActions';
 import { useShuffleOverlay } from '../hooks/useShuffleOverlay';
 import { useTheme } from '../hooks/useTheme';
-import { buildAutoName, capturePlayerSnapshot, commitBookmark } from '../services/bookmarkService';
-import { toggleStar } from '../services/moreOptionsService';
 import {
   clearQueue,
   retryPlayback,
@@ -52,12 +51,9 @@ import {
   togglePlayPause,
 } from '../services/playerService';
 import { type Child } from '../services/subsonicService';
-import { bookmarkSheetStore } from '../store/bookmarkSheetStore';
-import { bookmarksStore } from '../store/bookmarksStore';
 import { moreOptionsStore } from '../store/moreOptionsStore';
 import { offlineModeStore } from '../store/offlineModeStore';
 import { playbackSettingsStore } from '../store/playbackSettingsStore';
-import { playbackToastStore } from '../store/playbackToastStore';
 import { playerStore } from '../store/playerStore';
 import { mixHexColors } from '../utils/colors';
 import { absoluteFill } from '../utils/styles';
@@ -286,7 +282,7 @@ export function TabletPortraitPlayer() {
                   {currentTrack.artist ?? t('unknownArtist')}
                 </Text>
               </View>
-              <FavoriteButton trackId={currentTrack.id} colors={colors} />
+              <FavoriteButton trackId={currentTrack.id} style={styles.favoriteButton} />
             </View>
           </View>
 
@@ -490,7 +486,7 @@ const PlaybackControls = memo(function PlaybackControls({
           {showSkipInterval && <SkipIntervalButton direction="forward" size={32} />}
         </View>
         <View style={styles.controlSideRight}>
-          <BookmarkButton colors={colors} />
+          <BookmarkButton style={styles.favoriteButton} />
         </View>
       </View>
     </>
@@ -521,88 +517,6 @@ const StripPlayButton = memo(function StripPlayButton({ colors }: { colors: Them
           color={colors.textPrimary}
         />
       )}
-    </Pressable>
-  );
-});
-
-/* ------------------------------------------------------------------ */
-/*  Favorite button                                                    */
-/* ------------------------------------------------------------------ */
-
-const FavoriteButton = memo(function FavoriteButton({
-  trackId,
-  colors,
-}: {
-  trackId: string;
-  colors: { red: string; textSecondary: string };
-}) {
-  const { t } = useTranslation();
-  const starred = useIsStarred('song', trackId);
-  const offlineMode = offlineModeStore((s) => s.offlineMode);
-
-  const handleToggle = useCallback(() => {
-    toggleStar('song', trackId);
-  }, [trackId]);
-
-  return (
-    <Pressable
-      onPress={handleToggle}
-      disabled={offlineMode}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={starred ? t('removeFromFavorites') : t('addToFavorites')}
-      style={({ pressed }) => [
-        styles.favoriteButton,
-        pressed && !offlineMode && styles.pressed,
-        offlineMode && styles.disabled,
-      ]}
-    >
-      <Ionicons
-        name={starred ? 'heart' : 'heart-outline'}
-        size={24}
-        color={starred ? colors.red : colors.textSecondary}
-      />
-    </Pressable>
-  );
-});
-
-/* ------------------------------------------------------------------ */
-/*  Bookmark button                                                    */
-/* ------------------------------------------------------------------ */
-
-const BookmarkButton = memo(function BookmarkButton({ colors }: { colors: ThemeColors }) {
-  const { t, i18n } = useTranslation();
-  const autoName = bookmarksStore((s) => s.autoName);
-  const queueLength = playerStore((s) => s.queue.length);
-  const disabled = queueLength === 0;
-
-  const handlePress = useCallback(() => {
-    const snapshot = capturePlayerSnapshot();
-    if (!snapshot) return;
-    const existingNames = Object.values(bookmarksStore.getState().bookmarks).map((b) => b.name);
-    const suggested = buildAutoName(t, i18n.language, existingNames);
-    if (autoName) {
-      commitBookmark(snapshot, suggested);
-      playbackToastStore.getState().flashSuccess(t('bookmarkSaved'));
-    } else {
-      bookmarkSheetStore.getState().showCreate(suggested, snapshot);
-    }
-  }, [autoName, t, i18n.language]);
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      disabled={disabled}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={t('addBookmark')}
-      style={({ pressed }) => [
-        styles.favoriteButton,
-        pressed && !disabled && styles.pressed,
-        disabled && styles.disabled,
-      ]}
-    >
-      <Ionicons name="bookmark-outline" size={24} color={colors.textSecondary} />
     </Pressable>
   );
 });

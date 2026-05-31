@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GradientBackground } from './GradientBackground';
 import { CachedImage } from './CachedImage';
+import { FavoriteButton } from './FavoriteButton';
 import { MarqueeText } from './MarqueeText';
 import { MoreOptionsButton } from './MoreOptionsButton';
 import { PlaybackRateButton } from './PlaybackRateButton';
@@ -25,12 +26,10 @@ import { SleepTimerCapsule } from './SleepTimerCapsule';
 import { closeOpenRow } from './SwipeableRow';
 import { type ThemeColors } from '../constants/theme';
 import { useCanSkip } from '../hooks/useCanSkip';
-import { useIsStarred } from '../hooks/useIsStarred';
 import { mixHexColors } from '../utils/colors';
 import { usePlayerActions } from '../hooks/usePlayerActions';
 import { useShuffleOverlay } from '../hooks/useShuffleOverlay';
 import { useTheme } from '../hooks/useTheme';
-import { toggleStar } from '../services/moreOptionsService';
 import {
   retryPlayback,
   skipToNext,
@@ -39,7 +38,6 @@ import {
 } from '../services/playerService';
 import { type Child } from '../services/subsonicService';
 import { moreOptionsStore } from '../store/moreOptionsStore';
-import { offlineModeStore } from '../store/offlineModeStore';
 import { playerStore } from '../store/playerStore';
 import { tabletLayoutStore } from '../store/tabletLayoutStore';
 
@@ -200,47 +198,6 @@ export function PlayerPanel() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Favorite button                                                    */
-/* ------------------------------------------------------------------ */
-
-const PanelFavoriteButton = memo(function PanelFavoriteButton({
-  trackId,
-  colors,
-}: {
-  trackId: string;
-  colors: { red: string; textSecondary: string };
-}) {
-  const { t } = useTranslation();
-  const starred = useIsStarred('song', trackId);
-  const offlineMode = offlineModeStore((s) => s.offlineMode);
-
-  const handleToggle = useCallback(() => {
-    toggleStar('song', trackId);
-  }, [trackId]);
-
-  return (
-    <Pressable
-      onPress={handleToggle}
-      disabled={offlineMode}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={starred ? t('removeFromFavorites') : t('addToFavorites')}
-      style={({ pressed }) => [
-        styles.favoriteButton,
-        pressed && !offlineMode && styles.pressed,
-        offlineMode && styles.disabled,
-      ]}
-    >
-      <Ionicons
-        name={starred ? 'heart' : 'heart-outline'}
-        size={20}
-        color={starred ? colors.red : colors.textSecondary}
-      />
-    </Pressable>
-  );
-});
-
-/* ------------------------------------------------------------------ */
 /*  Panel header: cover art, controls, queue heading                   */
 /* ------------------------------------------------------------------ */
 
@@ -329,7 +286,7 @@ const PanelHeader = memo(function PanelHeader({
                   {currentTrack.artist ?? t('unknownArtist')}
                 </Text>
               </View>
-              <PanelFavoriteButton trackId={currentTrack.id} colors={colors} />
+              <FavoriteButton trackId={currentTrack.id} size={20} style={styles.favoriteButton} />
             </View>
           </View>
 
