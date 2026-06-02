@@ -965,6 +965,8 @@
   "heavyRotation": "Heavy Rotation",
   "mostPlayedThisWeek": "Your most played this week",
   "decadeAny": "Any",
+  "decadeEarlier": "Earlier",
+  "decadeRecent": "Recent",
   "theDecade": "The {{decade}}",
   "monthJan": "Jan",
   "monthFeb": "Feb",
