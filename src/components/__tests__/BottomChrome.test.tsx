@@ -5,6 +5,15 @@ jest.mock('../player/PlayerPhoneMini', () => {
   return { PlayerPhoneMini: () => <View testID="mini-player" /> };
 });
 
+jest.mock('../player/PlayerTabletPortraitMini', () => {
+  const { View } = require('react-native');
+  return { PlayerTabletPortraitMini: () => <View testID="tablet-mini-player" /> };
+});
+
+jest.mock('../../hooks/useIsTabletPortrait', () => ({
+  useIsTabletPortrait: jest.fn(() => false),
+}));
+
 jest.mock('../DownloadBanner', () => {
   const { View } = require('react-native');
   return {
@@ -24,6 +33,7 @@ jest.mock('react-native-safe-area-context', () => ({
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
+import { useIsTabletPortrait } from '../../hooks/useIsTabletPortrait';
 import { useLayoutMode } from '../../hooks/useLayoutMode';
 import { authStore } from '../../store/authStore';
 import { musicCacheStore } from '../../store/musicCacheStore';
@@ -32,6 +42,7 @@ import type { DownloadQueueItem } from '../../store/musicCacheStore';
 import { BottomChrome } from '../BottomChrome';
 
 const mockUseLayoutMode = useLayoutMode as jest.Mock;
+const mockUseIsTabletPortrait = useIsTabletPortrait as jest.Mock;
 
 const TRACK = {
   id: 't1',
@@ -59,6 +70,7 @@ function makeQueueItem(overrides: Partial<DownloadQueueItem> = {}): DownloadQueu
 
 beforeEach(() => {
   mockUseLayoutMode.mockReturnValue('compact');
+  mockUseIsTabletPortrait.mockReturnValue(false);
   authStore.setState({ isLoggedIn: true });
   playerStore.setState({ currentTrack: null });
   musicCacheStore.setState({ downloadQueue: [] });
@@ -74,6 +86,14 @@ describe('BottomChrome', () => {
     // Banner is conditionally mounted only when hasDownloads — eliminates
     // the class of bugs where the banner's height-animation gets stuck.
     expect(queryByTestId('download-banner')).toBeNull();
+  });
+
+  it('compact + tablet-portrait + has-track → tablet mini player, phone mini absent', () => {
+    mockUseIsTabletPortrait.mockReturnValue(true);
+    playerStore.setState({ currentTrack: TRACK });
+    const { getByTestId, queryByTestId } = render(<BottomChrome />);
+    expect(getByTestId('tablet-mini-player')).toBeTruthy();
+    expect(queryByTestId('mini-player')).toBeNull();
   });
 
   it('compact + no-track + has-downloads → banner only, mini player absent', () => {

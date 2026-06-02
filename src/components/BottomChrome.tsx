@@ -3,6 +3,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DownloadBanner } from './DownloadBanner';
 import { PlayerPhoneMini } from './player/PlayerPhoneMini';
+import { PlayerTabletPortraitMini } from './player/PlayerTabletPortraitMini';
+import { useIsTabletPortrait } from '../hooks/useIsTabletPortrait';
 import { useLayoutMode } from '../hooks/useLayoutMode';
 import { authStore } from '../store/authStore';
 import { musicCacheStore } from '../store/musicCacheStore';
@@ -39,6 +41,7 @@ interface BottomChromeProps {
 
 export function BottomChrome({ withSafeAreaPadding = false }: BottomChromeProps = {}) {
   const isWide = useLayoutMode() === 'wide';
+  const isTabletPortrait = useIsTabletPortrait();
   const isLoggedIn = authStore((s) => s.isLoggedIn);
   const hasCurrentTrack = playerStore((s) => s.currentTrack !== null);
   // Mirrors `DownloadBanner`'s own filter so the two can't drift. Counts
@@ -66,7 +69,9 @@ export function BottomChrome({ withSafeAreaPadding = false }: BottomChromeProps 
       ]}
     >
       {hasDownloads && <DownloadBanner />}
-      {!isWide && hasCurrentTrack && <PlayerPhoneMini />}
+      {!isWide && hasCurrentTrack && (
+        isTabletPortrait ? <PlayerTabletPortraitMini /> : <PlayerPhoneMini />
+      )}
     </View>
   );
 }
