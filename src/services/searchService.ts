@@ -164,6 +164,32 @@ export function getOfflineSongsByGenre(genre: string): Child[] {
   return collectOfflineSongs(genre);
 }
 
+/**
+ * The set of genre names (lowercased) present anywhere in the offline (cached)
+ * library. Single pass over all cached songs, parsing each envelope once.
+ *
+ * Replaces the O(genres × songs) pattern of calling `getOfflineSongsByGenre`
+ * once per candidate genre (which re-walks the whole library per genre) — used
+ * by the Tuned-In builder's offline genre list, which previously froze on a
+ * large offline library at screen mount.
+ */
+export function getOfflineGenresPresent(): Set<string> {
+  const { cachedItems, cachedSongs } = musicCacheStore.getState();
+  const present = new Set<string>();
+  const seen = new Set<string>();
+  for (const item of Object.values(cachedItems)) {
+    for (const songId of item.songIds) {
+      if (seen.has(songId)) continue;
+      seen.add(songId);
+      if (!cachedSongs[songId]) continue;
+      const envelope = getSongEnvelope(songId);
+      if (!envelope) continue;
+      for (const name of getGenreNames(envelope)) present.add(name.toLowerCase());
+    }
+  }
+  return present;
+}
+
 export function getOfflineSongsAll(): Child[] {
   return collectOfflineSongs();
 }

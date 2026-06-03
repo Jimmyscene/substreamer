@@ -35,7 +35,7 @@ import {
   generateMixes,
   type MixDefinition,
 } from '../services/tunedInService';
-import { getOfflineSongsByGenre } from '../services/searchService';
+import { getOfflineGenresPresent } from '../services/searchService';
 import { playTrack } from '../services/playerService';
 import { getAlbum } from '../services/subsonicService';
 import { albumListsStore } from '../store/albumListsStore';
@@ -893,13 +893,11 @@ export function TunedInScreen() {
       .map(([genre]) => genre);
 
     if (!online) {
-      // Offline: only genres present in cached tracks
-      const offlineGenres = new Set<string>();
-      for (const genre of historyGenres) {
-        const songs = getOfflineSongsByGenre(genre);
-        if (songs.length > 0) offlineGenres.add(genre);
-      }
-      return Array.from(offlineGenres);
+      // Offline: keep only history genres present in cached tracks. Single
+      // pass over the library (parses each song envelope once) instead of
+      // re-walking it per candidate genre.
+      const present = getOfflineGenresPresent();
+      return historyGenres.filter((g) => present.has(g.toLowerCase()));
     }
 
     const existing = new Set(historyGenres.map((g) => g.toLowerCase()));
