@@ -18,7 +18,6 @@ import {
   countSongIndex,
   deleteAlbumDetail,
   deleteSongsForAlbums,
-  fetchAllSongsByTitle,
   fetchAllSongsByTitleAsync,
   hydrateAlbumDetails,
   upsertAlbumDetail,
@@ -286,32 +285,32 @@ describe('detailTables — song_index', () => {
   });
 });
 
-describe('detailTables — fetchAllSongsByTitle', () => {
-  it('returns empty array when song_index is empty', () => {
-    expect(fetchAllSongsByTitle()).toEqual([]);
+describe('detailTables — fetchAllSongsByTitleAsync', () => {
+  it('returns empty array when song_index is empty', async () => {
+    expect(await fetchAllSongsByTitleAsync()).toEqual([]);
   });
 
-  it('returns one Child per row sorted alphabetically (case-insensitive)', () => {
+  it('returns one Child per row sorted alphabetically (case-insensitive)', async () => {
     upsertSongsForAlbum('a1', [
       { id: 's3', title: 'cherry' },
       { id: 's1', title: 'Apple' },
       { id: 's2', title: 'banana' },
     ].map((s) => ({ ...s, artist: 'A', duration: 1, discNumber: 1 })) as any);
-    const out = fetchAllSongsByTitle();
+    const out = await fetchAllSongsByTitleAsync();
     expect(out.map((s) => s.title)).toEqual(['Apple', 'banana', 'cherry']);
   });
 
-  it('NULL titles sort to the end and id is the stable tie-breaker', () => {
+  it('NULL titles sort to the end and id is the stable tie-breaker', async () => {
     upsertSongsForAlbum('a1', [
       { id: 'zzz' }, // null title
       { id: 'bbb', title: 'dup' },
       { id: 'aaa', title: 'dup' },
     ] as any);
-    const out = fetchAllSongsByTitle();
+    const out = await fetchAllSongsByTitleAsync();
     expect(out.map((s) => s.id)).toEqual(['aaa', 'bbb', 'zzz']);
   });
 
-  it('downloadedOnly JOINs cached_songs and excludes non-downloaded rows', () => {
+  it('downloadedOnly JOINs cached_songs and excludes non-downloaded rows', async () => {
     upsertSongsForAlbum('a1', [
       { id: 's1', title: 'aaa' },
       { id: 's2', title: 'bbb' },
@@ -319,21 +318,21 @@ describe('detailTables — fetchAllSongsByTitle', () => {
     ] as any);
     fakeDb.cachedSongs.add('s1');
     fakeDb.cachedSongs.add('s3');
-    const out = fetchAllSongsByTitle({ downloadedOnly: true });
+    const out = await fetchAllSongsByTitleAsync({ downloadedOnly: true });
     expect(out.map((s) => s.id)).toEqual(['s1', 's3']);
   });
 
-  it('favoritesOnly filters to starred rows', () => {
+  it('favoritesOnly filters to starred rows', async () => {
     upsertSongsForAlbum('a1', [
       { id: 's1', title: 'aaa', starred: '2020' },
       { id: 's2', title: 'bbb' },
       { id: 's3', title: 'ccc', starred: '2020' },
     ] as any);
-    const out = fetchAllSongsByTitle({ favoritesOnly: true });
+    const out = await fetchAllSongsByTitleAsync({ favoritesOnly: true });
     expect(out.map((s) => s.id)).toEqual(['s1', 's3']);
   });
 
-  it('both filters combine (AND)', () => {
+  it('both filters combine (AND)', async () => {
     upsertSongsForAlbum('a1', [
       { id: 's1', title: 'aaa', starred: '2020' }, // starred + downloaded
       { id: 's2', title: 'bbb', starred: '2020' }, // starred only
@@ -342,15 +341,15 @@ describe('detailTables — fetchAllSongsByTitle', () => {
     ] as any);
     fakeDb.cachedSongs.add('s1');
     fakeDb.cachedSongs.add('s4');
-    const out = fetchAllSongsByTitle({ downloadedOnly: true, favoritesOnly: true });
+    const out = await fetchAllSongsByTitleAsync({ downloadedOnly: true, favoritesOnly: true });
     expect(out.map((s) => s.id)).toEqual(['s1']);
   });
 
-  it('preserves Child-shape fields (id/albumId/title/artist/album/duration/coverArt/discNumber)', () => {
+  it('preserves Child-shape fields (id/albumId/title/artist/album/duration/coverArt/discNumber)', async () => {
     upsertSongsForAlbum('a1', [
       { id: 's1', title: 't1', artist: 'A', album: 'Alpha', duration: 200, coverArt: 'ca1', discNumber: 2, track: 7 },
     ] as any);
-    const [song] = fetchAllSongsByTitle();
+    const [song] = await fetchAllSongsByTitleAsync();
     expect(song.id).toBe('s1');
     expect(song.albumId).toBe('a1');
     expect(song.title).toBe('t1');
@@ -362,32 +361,10 @@ describe('detailTables — fetchAllSongsByTitle', () => {
     expect(song.track).toBe(7);
   });
 
-  it('returns [] when db is unavailable', () => {
-    __setDbForTests(null);
-    expect(fetchAllSongsByTitle()).toEqual([]);
-    expect(fetchAllSongsByTitle({ downloadedOnly: true })).toEqual([]);
-  });
-});
-
-describe('detailTables — fetchAllSongsByTitleAsync', () => {
-  it('returns the same sorted Child list as the sync variant', async () => {
-    upsertSongsForAlbum('a1', [
-      { id: 's3', title: 'cherry' },
-      { id: 's1', title: 'Apple' },
-      { id: 's2', title: 'banana' },
-    ].map((s) => ({ ...s, artist: 'A', duration: 1, discNumber: 1 })) as any);
-    const out = await fetchAllSongsByTitleAsync();
-    expect(out.map((s) => s.title)).toEqual(['Apple', 'banana', 'cherry']);
-  });
-
-  it('honors filters and returns [] when db is unavailable', async () => {
-    upsertSongsForAlbum('a1', [
-      { id: 's1', title: 'aaa', starred: '2020' },
-      { id: 's2', title: 'bbb' },
-    ] as any);
-    expect((await fetchAllSongsByTitleAsync({ favoritesOnly: true })).map((s) => s.id)).toEqual(['s1']);
+  it('returns [] when db is unavailable', async () => {
     __setDbForTests(null);
     expect(await fetchAllSongsByTitleAsync()).toEqual([]);
+    expect(await fetchAllSongsByTitleAsync({ downloadedOnly: true })).toEqual([]);
   });
 });
 

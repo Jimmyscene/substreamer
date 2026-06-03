@@ -291,38 +291,18 @@ function mapSongRow(r: SongIndexRow): Child {
   } as Child;
 }
 
-/**
- * Read every song row sorted alphabetically by title (case-insensitive),
- * with optional downloadedOnly / favoritesOnly filters. Used by the Songs
- * library segment. Backed by `idx_song_index_title` so the sort is free.
- * NULL titles sort to the end and `id` is the stable tie-breaker.
- *
- * **Synchronous** — blocks the JS thread for the read + mapping. Prefer
- * `fetchAllSongsByTitleAsync` for the library pre-warm / cold path so a big
- * library doesn't freeze the UI; this variant remains for sync callers/tests.
- */
-export function fetchAllSongsByTitle(opts: SongsByTitleOpts = {}): Child[] {
-  const db = getDb();
-  if (db === null) return [];
-  try {
-    const rows = db.getAllSync<SongIndexRow>(buildSongsByTitleSql(opts));
-    const out: Child[] = new Array(rows.length);
-    for (let i = 0; i < rows.length; i++) out[i] = mapSongRow(rows[i]);
-    return out;
-  } catch {
-    return [];
-  }
-}
-
 /** Rows mapped per macrotask yield, keeping the JS thread responsive. */
 const SONG_MAP_CHUNK = 2000;
 
 /**
- * Async counterpart of `fetchAllSongsByTitle`. The SQLite read runs on
- * expo-sqlite's background thread (`getAllAsync`), and the JS row→`Child`
- * mapping is chunked with `setTimeout(0)` yields so neither stage blocks the
- * JS thread for long — even on a large library. Used by the pre-warm and the
- * Songs segment's cold path.
+ * Read every song row sorted alphabetically by title (case-insensitive), with
+ * optional downloadedOnly / favoritesOnly filters. Used by the Songs library
+ * segment. Backed by `idx_song_index_title` so the sort is free; NULL titles
+ * sort to the end and `id` is the stable tie-breaker.
+ *
+ * The SQLite read runs on expo-sqlite's background thread (`getAllAsync`), and
+ * the JS row→`Child` mapping is chunked with `setTimeout(0)` yields so neither
+ * stage blocks the JS thread for long — even on a large library.
  */
 export async function fetchAllSongsByTitleAsync(
   opts: SongsByTitleOpts = {},
