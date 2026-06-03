@@ -12,6 +12,7 @@ import { musicCacheStore } from '../musicCacheStore';
 import { offlineModeStore } from '../offlineModeStore';
 import { pendingScrobbleStore } from '../pendingScrobbleStore';
 import { playlistLibraryStore } from '../playlistLibraryStore';
+import { scanStatusStore } from '../scanStatusStore';
 import { serverInfoStore } from '../serverInfoStore';
 import { songIndexStore } from '../songIndexStore';
 import { syncStatusStore } from '../syncStatusStore';
@@ -113,6 +114,7 @@ const STARTUP_KV_STORES = [
   genreStore,
   serverInfoStore,
   syncStatusStore,
+  scanStatusStore,
 ];
 
 /**

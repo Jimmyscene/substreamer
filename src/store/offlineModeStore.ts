@@ -56,8 +56,12 @@ export function initializeOfflineFilterBarSync(): () => void {
     filterBarStore.getState().setDownloadedOnly(state.offlineMode);
   });
 
-  // Initial sync — kvStorage rehydration is synchronous during create(),
-  // so by the time this helper runs the persisted offlineMode is loaded.
+  // Initial sync for the already-hydrated case. offlineModeStore now persists
+  // via the async kvStorage adapter, so if this runs before hydration the read
+  // sees the default (false) — the `subscribe` above (registered first) then
+  // fires on the hydration transition and corrects the filter bar. The
+  // startup chain also awaits `awaitKvHydration()` (which includes
+  // offlineModeStore) before its offline-dependent work.
   if (offlineModeStore.getState().offlineMode) {
     filterBarStore.getState().setDownloadedOnly(true);
   }
