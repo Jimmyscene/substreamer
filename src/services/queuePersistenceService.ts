@@ -1,11 +1,24 @@
-// Synchronous adapter: queue/position blobs are persisted and restored through
-// a synchronous API consumed at player init.
-import { kvStorageSync as kvStorage } from '../store/persistence';
+// Queue blob: written through the ASYNC adapter, debounced (full-queue
+// stringify + write coalesced across rapid skips, IO off the JS thread).
+// Position blob: tiny + already throttled to 10s, so it stays on the sync
+// adapter. Init reads are synchronous (one-shot at player start).
+import { kvStorage, kvStorageSync } from '../store/persistence';
 import { type Child } from './subsonicService';
 
 const QUEUE_KEY = 'substreamer-persisted-queue';
 const POSITION_KEY = 'substreamer-persisted-position';
 export const PERSIST_INTERVAL_MS = 10_000;
+
+/**
+ * Debounce window for queue writes. The queue is serialized in full on every
+ * track change/skip; without coalescing, rapid skips would stringify + write
+ * the entire (potentially thousands-of-tracks) queue many times on the JS
+ * thread. A short trailing debounce collapses a burst to one write, and the
+ * write itself runs off-thread via the async adapter. The on-disk copy only
+ * needs to be current for crash/relaunch restore, so a ~1.5s lag is fine —
+ * `flushPersistedQueue()` forces it out on backgrounding.
+ */
+const QUEUE_DEBOUNCE_MS = 1500;
 
 interface PersistedQueue {
   queue: Child[];
@@ -19,12 +32,40 @@ interface PersistedPosition {
 
 let lastPositionPersistTime = 0;
 
+let queueTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingQueue: PersistedQueue | null = null;
+
+function clearQueueTimer(): void {
+  if (queueTimer !== null) {
+    clearTimeout(queueTimer);
+    queueTimer = null;
+  }
+}
+
+function flushQueueWrite(): void {
+  clearQueueTimer();
+  if (pendingQueue === null) return;
+  const data = pendingQueue;
+  pendingQueue = null;
+  // Stringify ONCE here (deferred from persistQueue), write off the JS thread.
+  void kvStorage.setItem(QUEUE_KEY, JSON.stringify(data));
+}
+
 export function persistQueue(
   queue: Child[],
   currentTrackIndex: number,
 ): void {
-  const data: PersistedQueue = { queue, currentTrackIndex };
-  kvStorage.setItem(QUEUE_KEY, JSON.stringify(data));
+  // Hold the latest snapshot in memory; (re)arm the debounce. Readers see it
+  // immediately via getPersistedQueue (pending-first), so the delayed disk
+  // write is transparent.
+  pendingQueue = { queue, currentTrackIndex };
+  clearQueueTimer();
+  queueTimer = setTimeout(flushQueueWrite, QUEUE_DEBOUNCE_MS);
+}
+
+/** Force the pending queue snapshot to disk now (e.g. on app background). */
+export function flushPersistedQueue(): void {
+  flushQueueWrite();
 }
 
 export function persistPositionIfDue(
@@ -34,7 +75,7 @@ export function persistPositionIfDue(
   const now = Date.now();
   if (now - lastPositionPersistTime < PERSIST_INTERVAL_MS) return false;
   lastPositionPersistTime = now;
-  kvStorage.setItem(
+  kvStorageSync.setItem(
     POSITION_KEY,
     JSON.stringify({ position, trackId } as PersistedPosition),
   );
@@ -43,20 +84,28 @@ export function persistPositionIfDue(
 
 export function flushPosition(position: number, trackId: string): void {
   lastPositionPersistTime = Date.now();
-  kvStorage.setItem(
+  kvStorageSync.setItem(
     POSITION_KEY,
     JSON.stringify({ position, trackId } as PersistedPosition),
   );
 }
 
 export function clearPersistedQueue(): void {
-  kvStorage.removeItem(QUEUE_KEY);
-  kvStorage.removeItem(POSITION_KEY);
+  // Cancel any pending queue write so it can't land after the removal.
+  clearQueueTimer();
+  pendingQueue = null;
+  void kvStorage.removeItem(QUEUE_KEY);
+  kvStorageSync.removeItem(POSITION_KEY);
   lastPositionPersistTime = 0;
 }
 
 export function getPersistedQueue(): PersistedQueue | null {
-  const raw = kvStorage.getItem(QUEUE_KEY) as string | null;
+  // Prefer the in-memory pending snapshot (freshest); fall back to disk. At
+  // player init no write has happened this session, so this reads disk.
+  if (pendingQueue !== null) {
+    return pendingQueue.queue.length === 0 ? null : pendingQueue;
+  }
+  const raw = kvStorageSync.getItem(QUEUE_KEY) as string | null;
   if (!raw) return null;
   try {
     const data = JSON.parse(raw) as PersistedQueue;
@@ -68,7 +117,7 @@ export function getPersistedQueue(): PersistedQueue | null {
 }
 
 export function getPersistedPosition(): PersistedPosition | null {
-  const raw = kvStorage.getItem(POSITION_KEY) as string | null;
+  const raw = kvStorageSync.getItem(POSITION_KEY) as string | null;
   if (!raw) return null;
   try {
     return JSON.parse(raw) as PersistedPosition;

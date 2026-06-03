@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ArtistListView, type ArtistLayout } from '../components/ArtistListView';
+import { useFetchOnHydrated } from '../hooks/useFetchOnHydrated';
 import { onPullToRefresh } from '../services/dataSyncService';
 import { albumLibraryStore } from '../store/albumLibraryStore';
 import { artistLibraryStore } from '../store/artistLibraryStore';
@@ -24,18 +25,17 @@ export function ArtistListScreen({
   const artists = artistLibraryStore((s) => s.artists);
   const loading = artistLibraryStore((s) => s.loading);
   const error = artistLibraryStore((s) => s.error);
-  const fetchAllArtists = artistLibraryStore((s) => s.fetchAllArtists);
 
   const cachedItems = musicCacheStore((s) => s.cachedItems);
   const includePartial = layoutPreferencesStore((s) => s.includePartialInDownloadedFilter);
   const allAlbums = albumLibraryStore((s) => s.albums);
   const starredArtists = favoritesStore((s) => s.artists);
 
-  useEffect(() => {
-    if (artists.length === 0 && !loading) {
-      fetchAllArtists();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch only after hydration so a cached library isn't re-fetched on mount.
+  useFetchOnHydrated(artistLibraryStore, () => {
+    const s = artistLibraryStore.getState();
+    if (s.artists.length === 0 && !s.loading) s.fetchAllArtists();
+  });
 
   const filteredArtists = useMemo(() => {
     if (!downloadedOnly && !favoritesOnly) return artists;

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { PlaylistListView, type PlaylistLayout } from '../components/PlaylistListView';
+import { useFetchOnHydrated } from '../hooks/useFetchOnHydrated';
 import { onPullToRefresh } from '../services/dataSyncService';
 import { musicCacheStore } from '../store/musicCacheStore';
 import { offlineModeStore } from '../store/offlineModeStore';
@@ -22,15 +23,14 @@ export function PlaylistListScreen({
   const playlists = playlistLibraryStore((s) => s.playlists);
   const loading = playlistLibraryStore((s) => s.loading);
   const error = playlistLibraryStore((s) => s.error);
-  const fetchAllPlaylists = playlistLibraryStore((s) => s.fetchAllPlaylists);
 
   const cachedItems = musicCacheStore((s) => s.cachedItems);
 
-  useEffect(() => {
-    if (playlists.length === 0 && !loading) {
-      fetchAllPlaylists();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch only after hydration so a cached library isn't re-fetched on mount.
+  useFetchOnHydrated(playlistLibraryStore, () => {
+    const s = playlistLibraryStore.getState();
+    if (s.playlists.length === 0 && !s.loading) s.fetchAllPlaylists();
+  });
 
   const filteredPlaylists = useMemo(() => {
     if (!downloadedOnly) return playlists;

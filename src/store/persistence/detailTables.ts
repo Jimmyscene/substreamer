@@ -97,6 +97,31 @@ export function upsertAlbumDetail(id: string, album: AlbumWithSongsID3, retrieve
   }
 }
 
+/**
+ * Async counterpart of {@link upsertAlbumDetail}. The album envelope is
+ * 50-200KB, so the write IO runs off the JS thread (`runAsync`). Used by the
+ * interactive paths (`albumDetailStore.fetchAlbum` on album-open and
+ * `applyLocalPlay` on every track play) where the in-memory state is set
+ * first, so the disk write is fire-and-forget. (`JSON.stringify` still runs on
+ * the JS thread — unavoidable for JSON storage — but the blocking IO does not.)
+ */
+export async function upsertAlbumDetailAsync(
+  id: string,
+  album: AlbumWithSongsID3,
+  retrievedAt: number,
+): Promise<void> {
+  const db = getDb();
+  if (db === null) return;
+  try {
+    await db.runAsync(
+      'INSERT OR REPLACE INTO album_details (id, json, retrievedAt) VALUES (?, ?, ?);',
+      [id, JSON.stringify(album), retrievedAt],
+    );
+  } catch {
+    /* dropped */
+  }
+}
+
 /** Remove a single album detail row AND the associated song_index rows. */
 export function deleteAlbumDetail(id: string): void {
   const db = getDb();

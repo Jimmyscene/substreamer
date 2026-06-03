@@ -13,7 +13,7 @@ import {
   deleteAlbumDetail,
   hydrateAlbumDetails,
   hydrateAlbumDetailsAsync,
-  upsertAlbumDetail,
+  upsertAlbumDetailAsync,
 } from './persistence/detailTables';
 import { ratingStore } from './ratingStore';
 import { songIndexStore } from './songIndexStore';
@@ -84,7 +84,7 @@ export const albumDetailStore = create<AlbumDetailState>()((set, get) => ({
             [id]: { album: data, retrievedAt },
           },
         });
-        upsertAlbumDetail(id, data, retrievedAt);
+        void upsertAlbumDetailAsync(id, data, retrievedAt);
         // Route song-index writes through songIndexStore so its mutation
         // counter (and totalCount) stay consistent with the SQL table.
         songIndexStore.getState().upsertSongsForAlbum(id, data.song ?? []);
@@ -120,7 +120,7 @@ export const albumDetailStore = create<AlbumDetailState>()((set, get) => ({
       };
       const updatedEntry: AlbumDetailEntry = { ...entry, album: updatedAlbum };
       set({ albums: { ...get().albums, [albumId]: updatedEntry } });
-      upsertAlbumDetail(albumId, updatedAlbum, entry.retrievedAt);
+      void upsertAlbumDetailAsync(albumId, updatedAlbum, entry.retrievedAt);
       return;
     }
     const oldSong = songs[songIdx];
@@ -138,7 +138,7 @@ export const albumDetailStore = create<AlbumDetailState>()((set, get) => ({
     };
     const updatedEntry: AlbumDetailEntry = { ...entry, album: updatedAlbum };
     set({ albums: { ...get().albums, [albumId]: updatedEntry } });
-    upsertAlbumDetail(albumId, updatedAlbum, entry.retrievedAt);
+    void upsertAlbumDetailAsync(albumId, updatedAlbum, entry.retrievedAt);
   },
 
   hasEntry: (id: string) => Object.prototype.hasOwnProperty.call(get().albums, id),

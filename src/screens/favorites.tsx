@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ArtistListView } from '../components/ArtistListView';
 import { SegmentControl } from '../components/SegmentControl';
 import { SongListView } from '../components/SongListView';
+import { useFetchOnHydrated } from '../hooks/useFetchOnHydrated';
 import { useTheme } from '../hooks/useTheme';
 import { shuffleArray } from '../utils/arrayHelpers';
 import { formatCompactDuration } from '../utils/formatters';
@@ -62,7 +63,6 @@ export function FavoritesScreen() {
   const artists = favoritesStore((s) => s.artists);
   const loading = favoritesStore((s) => s.loading);
   const error = favoritesStore((s) => s.error);
-  const fetchStarred = favoritesStore((s) => s.fetchStarred);
 
   /* ---- Store: layout preferences ---- */
   const favSongLayout = layoutPreferencesStore((s) => s.favSongLayout);
@@ -84,12 +84,20 @@ export function FavoritesScreen() {
     setFavArtistLayout(favArtistLayout === 'list' ? 'grid' : 'list');
   }, [favArtistLayout, setFavArtistLayout]);
 
-  /* ---- Auto-fetch on mount ---- */
-  useEffect(() => {
-    if (songs.length === 0 && albums.length === 0 && artists.length === 0 && !loading) {
-      fetchStarred();
+  /* ---- Auto-fetch on mount (after hydration) ---- */
+  // favoritesStore persists via the async adapter; gate the empty-check on
+  // hydration so cached favorites aren't re-fetched before the blob loads.
+  useFetchOnHydrated(favoritesStore, () => {
+    const s = favoritesStore.getState();
+    if (
+      s.songs.length === 0 &&
+      s.albums.length === 0 &&
+      s.artists.length === 0 &&
+      !s.loading
+    ) {
+      s.fetchStarred();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
   /* ---- Filter state ---- */
   const offlineMode = offlineModeStore((s) => s.offlineMode);

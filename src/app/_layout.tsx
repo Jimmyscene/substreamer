@@ -70,6 +70,7 @@ import { connectivityStore } from '../store/connectivityStore';
 import { deferredMusicCacheInit, getMusicCacheStats, initMusicCache } from '../services/musicCacheService';
 import { checkStorageLimit } from '../services/storageService';
 import { initPlayer, removeNonDownloadedTracks } from '../services/playerService';
+import { flushPersistedQueue } from '../services/queuePersistenceService';
 import NetInfo from '@react-native-community/netinfo';
 import { startMonitoring, stopMonitoring } from '../services/connectivityService';
 import { initFailover } from '../services/failoverService';
@@ -416,10 +417,12 @@ export default function RootLayout() {
         // (#148). 10-minute threshold dedupes rapid foreground flips.
         void albumListsStore.getState().refreshAllIfDue(FOREGROUND_REFRESH_THRESHOLD_MS);
       } else if (next === 'background' || next === 'inactive') {
-        // Flush any debounced library-store writes so leaving the app
-        // persists the latest state (the debounce window would otherwise
-        // be lost if the OS kills the process while backgrounded).
+        // Flush debounced writes so leaving the app persists the latest state
+        // (the debounce windows would otherwise be lost if the OS kills the
+        // process while backgrounded): the library-store persist writes and
+        // the player queue snapshot.
         void flushAllPersistStorages();
+        flushPersistedQueue();
       }
     });
     return () => sub.remove();

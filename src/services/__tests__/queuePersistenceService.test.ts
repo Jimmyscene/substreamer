@@ -17,9 +17,9 @@ const makeChild = (id: string): Child =>
   ({ id, title: `Song ${id}`, artist: 'Artist', duration: 200 }) as Child;
 
 beforeEach(() => {
-  kvStorage.removeItem('substreamer-persisted-queue');
-  kvStorage.removeItem('substreamer-persisted-position');
-  resetPersistTimer();
+  // clearPersistedQueue resets all module state: the in-memory pending queue
+  // snapshot + debounce timer, the position throttle, and both stored blobs.
+  clearPersistedQueue();
 });
 
 describe('persistQueue / getPersistedQueue', () => {

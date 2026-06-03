@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AlbumListView, type AlbumLayout } from '../components/AlbumListView';
+import { useFetchOnHydrated } from '../hooks/useFetchOnHydrated';
 import { onPullToRefresh } from '../services/dataSyncService';
 import { albumLibraryStore } from '../store/albumLibraryStore';
 import { favoritesStore } from '../store/favoritesStore';
@@ -23,17 +24,17 @@ export function AlbumLibraryListScreen({
   const albums = albumLibraryStore((s) => s.albums);
   const loading = albumLibraryStore((s) => s.loading);
   const error = albumLibraryStore((s) => s.error);
-  const fetchAllAlbums = albumLibraryStore((s) => s.fetchAllAlbums);
 
   const cachedItems = musicCacheStore((s) => s.cachedItems);
   const starredAlbums = favoritesStore((s) => s.albums);
   const includePartial = layoutPreferencesStore((s) => s.includePartialInDownloadedFilter);
 
-  useEffect(() => {
-    if (albums.length === 0 && !loading) {
-      fetchAllAlbums();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch only once the store has hydrated, so an async-hydration empty window
+  // can't trigger a spurious full-library fetch when cached albums exist.
+  useFetchOnHydrated(albumLibraryStore, () => {
+    const s = albumLibraryStore.getState();
+    if (s.albums.length === 0 && !s.loading) s.fetchAllAlbums();
+  });
 
   const filteredAlbums = useMemo(() => {
     if (!downloadedOnly && !favoritesOnly) return albums;
