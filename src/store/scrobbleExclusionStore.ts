@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 export interface ScrobbleExclusion {
   id: string;
@@ -90,7 +90,7 @@ export const scrobbleExclusionStore = create<ScrobbleExclusionState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         excludedAlbums: state.excludedAlbums,
         excludedArtists: state.excludedArtists,

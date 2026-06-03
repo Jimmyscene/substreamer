@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
 import i18n from '../i18n/i18n';
 
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 import {
   ensureCoverArtAuth,
@@ -73,7 +73,7 @@ export const artistLibraryStore = create<ArtistLibraryState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         artists: state.artists,
         lastFetchedAt: state.lastFetchedAt,

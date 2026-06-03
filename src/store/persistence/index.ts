@@ -17,6 +17,13 @@ export { getDb, isDbHealthy, dbInitError, kvFallback, __setDbForTests, type Inte
 // KV blob storage (Zustand StateStorage adapters) + clear
 export { kvStorage, kvStorageSync, clearKvStorage } from './kvStorage';
 
+// Debounced, deferred-stringify persist storage for the large library stores
+export {
+  createDebouncedPersistStorage,
+  flushAllPersistStorages,
+  dropAllPendingPersistWrites,
+} from './debouncedStorage';
+
 // Music-cache row-table API
 export * from './musicCacheTables';
 

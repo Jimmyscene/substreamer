@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
 import i18n from '../i18n/i18n';
 
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 import { ensureCached, prefetchCoverArt } from '../services/imageCacheService';
 import { coverArtIdForAlbum, coverArtIdForArtist } from '../utils/coverArtId';
@@ -162,7 +162,7 @@ export const favoritesStore = create<FavoritesState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         songs: state.songs,
         albums: state.albums,

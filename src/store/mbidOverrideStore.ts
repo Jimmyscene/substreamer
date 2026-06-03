@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 export type MbidOverrideType = 'artist' | 'album';
 
@@ -85,7 +85,7 @@ export const mbidOverrideStore = create<MbidOverrideState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         overrides: state.overrides,
       }),

@@ -7,7 +7,11 @@
 
 // Synchronous adapter: the hand-rolled settings-blob keys are removed
 // synchronously alongside the rest of the logout teardown.
-import { kvStorageSync as kvStorage, clearKvStorage } from './persistence';
+import {
+  kvStorageSync as kvStorage,
+  clearKvStorage,
+  dropAllPendingPersistWrites,
+} from './persistence';
 import { clearDetailTables } from './persistence/detailTables';
 import { clearPendingScrobbles } from './persistence/pendingScrobbleTable';
 import { clearScrobbles } from './persistence/scrobbleTable';
@@ -130,6 +134,10 @@ export function resetAllStores(): void {
   // download recovery against a reset store. The next login re-arms them.
   teardownMusicCache();
   teardownImageCache();
+  // Drop any debounced-but-unflushed library-store writes BEFORE wiping the
+  // table, so a pending timer can't fire after `clearKvStorage()` and write
+  // stale library data back into the freshly-cleared storage.
+  dropAllPendingPersistWrites();
   clearKvStorage();
   // Clear the per-row SQLite tables used by albumDetailStore + songIndexStore.
   // These live in a separate connection (`detailTables.ts`) from the generic

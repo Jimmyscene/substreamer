@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 import { prefetchCoverArt } from '../services/imageCacheService';
 import {
@@ -171,7 +171,7 @@ export const albumListsStore = create<AlbumListsState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         recentlyAdded: state.recentlyAdded,
         recentlyPlayed: state.recentlyPlayed,

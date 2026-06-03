@@ -79,6 +79,7 @@ import { runAutoBackupIfNeeded } from '../services/backupService';
 import { startAutoOffline, stopAutoOffline } from '../services/autoOfflineService';
 import { excludeFromBackup } from 'expo-backup-exclusions';
 import { moveToBack } from 'expo-move-to-back';
+import { flushAllPersistStorages } from '../store/persistence';
 import { awaitKvHydration, rehydrateAllStores } from '../store/persistence/rehydrate';
 import { albumListsStore } from '../store/albumListsStore';
 import { musicCacheStore } from '../store/musicCacheStore';
@@ -414,6 +415,11 @@ export default function RootLayout() {
         // clients during backgrounding appear without a manual refresh
         // (#148). 10-minute threshold dedupes rapid foreground flips.
         void albumListsStore.getState().refreshAllIfDue(FOREGROUND_REFRESH_THRESHOLD_MS);
+      } else if (next === 'background' || next === 'inactive') {
+        // Flush any debounced library-store writes so leaving the app
+        // persists the latest state (the debounce window would otherwise
+        // be lost if the OS kills the process while backgrounded).
+        void flushAllPersistStorages();
       }
     });
     return () => sub.remove();
