@@ -43,6 +43,46 @@ export function hydrateAlbumDetails(): Record<string, { album: AlbumWithSongsID3
   }
 }
 
+/** Album rows parsed per macrotask yield. Each `json` blob is 50-200KB, so
+ * a small chunk keeps any single tick short. */
+const ALBUM_DETAIL_PARSE_CHUNK = 50;
+
+/**
+ * Async counterpart of {@link hydrateAlbumDetails}. The read runs on
+ * expo-sqlite's background thread (`getAllAsync`) and the per-row
+ * `JSON.parse` of each (large) album envelope is chunked with `setTimeout(0)`
+ * yields so a big detail cache doesn't freeze the JS thread at boot. Used by
+ * `albumDetailStore.hydrateFromDbAsync`. setTimeout, not rAF — rAF can stall
+ * on RN 0.85/Fabric.
+ */
+export async function hydrateAlbumDetailsAsync(): Promise<
+  Record<string, { album: AlbumWithSongsID3; retrievedAt: number }>
+> {
+  const db = getDb();
+  if (db === null) return {};
+  try {
+    const rows = await db.getAllAsync<{ id: string; json: string; retrievedAt: number }>(
+      'SELECT id, json, retrievedAt FROM album_details;',
+    );
+    const out: Record<string, { album: AlbumWithSongsID3; retrievedAt: number }> = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        const album = JSON.parse(row.json) as AlbumWithSongsID3;
+        out[row.id] = { album, retrievedAt: row.retrievedAt };
+      } catch {
+        /* skip unparseable row */
+      }
+      if (i > 0 && i % ALBUM_DETAIL_PARSE_CHUNK === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 /** Insert-or-replace a single album detail row. */
 export function upsertAlbumDetail(id: string, album: AlbumWithSongsID3, retrievedAt: number): void {
   const db = getDb();
@@ -151,6 +191,19 @@ export function countSongIndex(): number {
   if (db === null) return 0;
   try {
     const row = db.getFirstSync<{ c: number }>('SELECT COUNT(*) AS c FROM song_index;');
+    return row?.c ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Async counterpart of {@link countSongIndex} — runs the COUNT on the
+ * background thread for the boot hydration path. */
+export async function countSongIndexAsync(): Promise<number> {
+  const db = getDb();
+  if (db === null) return 0;
+  try {
+    const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM song_index;');
     return row?.c ?? 0;
   } catch {
     return 0;

@@ -299,6 +299,100 @@ export function hydrateDownloadQueue(): DownloadQueueRow[] {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Async hydrate (boot path — off the JS thread)                      */
+/* ------------------------------------------------------------------ */
+
+/** Rows mapped per macrotask yield during async hydration. */
+const HYDRATE_MAP_CHUNK = 2000;
+
+async function yieldEvery(i: number): Promise<void> {
+  if (i > 0 && i % HYDRATE_MAP_CHUNK === 0) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+/**
+ * Async counterpart of {@link hydrateCachedSongs}. The read runs on
+ * expo-sqlite's background thread (`getAllAsync`) and the row→object mapping
+ * is chunked with `setTimeout(0)` yields, so a large cached-songs table does
+ * not freeze the JS thread at boot. `raw_json` is stored verbatim (parsed
+ * lazily via `getSongEnvelope`), so no per-row JSON.parse happens here.
+ */
+export async function hydrateCachedSongsAsync(): Promise<Record<string, CachedSongRow>> {
+  const db = getDb();
+  if (db === null) return {};
+  try {
+    const rows = await db.getAllAsync<RawSongRow>(
+      `SELECT song_id, title, artist, album, album_id, cover_art, bytes,
+              duration, suffix, bit_rate, bit_depth, sampling_rate,
+              format_captured_at, downloaded_at, raw_json
+         FROM cached_songs;`,
+    );
+    const out: Record<string, CachedSongRow> = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.song_id) out[row.song_id] = mapSongRow(row);
+      await yieldEvery(i);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Async counterpart of {@link hydrateCachedItems}. */
+export async function hydrateCachedItemsAsync(): Promise<Record<string, CachedItemRow>> {
+  const db = getDb();
+  if (db === null) return {};
+  try {
+    const items = await db.getAllAsync<RawItemRow>(
+      `SELECT item_id, type, name, artist, cover_art_id, expected_song_count,
+              parent_album_id, last_sync_at, downloaded_at, raw_json
+         FROM cached_items;`,
+    );
+    const edges = await db.getAllAsync<{ item_id: string; song_id: string }>(
+      'SELECT item_id, song_id FROM cached_item_songs ORDER BY item_id, position ASC;',
+    );
+    const edgesByItem = new Map<string, string[]>();
+    for (let i = 0; i < edges.length; i++) {
+      const edge = edges[i];
+      const list = edgesByItem.get(edge.item_id);
+      if (list) list.push(edge.song_id);
+      else edgesByItem.set(edge.item_id, [edge.song_id]);
+      await yieldEvery(i);
+    }
+    const out: Record<string, CachedItemRow> = {};
+    for (let i = 0; i < items.length; i++) {
+      const row = items[i];
+      if (!row.item_id) continue;
+      out[row.item_id] = mapItemRow(row, edgesByItem.get(row.item_id) ?? []);
+      await yieldEvery(i);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Async counterpart of {@link hydrateDownloadQueue}. */
+export async function hydrateDownloadQueueAsync(): Promise<DownloadQueueRow[]> {
+  const db = getDb();
+  if (db === null) return [];
+  try {
+    const rows = await db.getAllAsync<RawQueueRow>(
+      `SELECT queue_id, item_id, type, name, artist, cover_art_id, status,
+              total_songs, completed_songs, error, added_at, queue_position,
+              songs_json
+         FROM download_queue
+         ORDER BY queue_position ASC;`,
+    );
+    return rows.map(mapQueueRow);
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Counts                                                             */
 /* ------------------------------------------------------------------ */
 

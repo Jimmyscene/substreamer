@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import {
   countSongIndex,
+  countSongIndexAsync,
   deleteSongsForAlbums as dbDeleteSongsForAlbums,
   upsertSongsForAlbum as dbUpsertSongsForAlbum,
 } from './persistence/detailTables';
@@ -32,6 +33,8 @@ export interface SongIndexState {
   deleteSongsForAlbums: (albumIds: readonly string[]) => void;
   /** Reset and re-read the count from the database. */
   hydrateFromDb: () => void;
+  /** Async boot-path twin of {@link hydrateFromDb} (background COUNT). */
+  hydrateFromDbAsync: () => Promise<void>;
   /** Force-sync the in-store count with the live DB count (diagnostics). */
   refreshCount: () => void;
 }
@@ -65,6 +68,10 @@ export const songIndexStore = create<SongIndexState>()((set, get) => ({
   hydrateFromDb: () => {
     // Idempotent re-read — see `albumDetailStore.hydrateFromDb` for rationale.
     set({ totalCount: countSongIndex(), hasHydrated: true });
+  },
+
+  hydrateFromDbAsync: async () => {
+    set({ totalCount: await countSongIndexAsync(), hasHydrated: true });
   },
 
   refreshCount: () => {

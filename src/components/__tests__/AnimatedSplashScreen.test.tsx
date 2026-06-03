@@ -518,10 +518,10 @@ describe('AnimatedSplashScreen', () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { musicCacheStore } = require('../../store/musicCacheStore');
 
-      const albumHydrate = jest.spyOn(albumDetailStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const songHydrate = jest.spyOn(songIndexStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const scrobbleHydrate = jest.spyOn(completedScrobbleStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const musicCacheHydrate = jest.spyOn(musicCacheStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
+      const albumHydrate = jest.spyOn(albumDetailStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const songHydrate = jest.spyOn(songIndexStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const scrobbleHydrate = jest.spyOn(completedScrobbleStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const musicCacheHydrate = jest.spyOn(musicCacheStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
 
       const onFinish = jest.fn();
       render(<AnimatedSplashScreen onFinish={onFinish} />);
@@ -564,10 +564,10 @@ describe('AnimatedSplashScreen', () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { musicCacheStore } = require('../../store/musicCacheStore');
 
-      const albumHydrate = jest.spyOn(albumDetailStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const songHydrate = jest.spyOn(songIndexStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const scrobbleHydrate = jest.spyOn(completedScrobbleStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
-      const musicCacheHydrate = jest.spyOn(musicCacheStore.getState(), 'hydrateFromDb').mockImplementation(() => {});
+      const albumHydrate = jest.spyOn(albumDetailStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const songHydrate = jest.spyOn(songIndexStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const scrobbleHydrate = jest.spyOn(completedScrobbleStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
+      const musicCacheHydrate = jest.spyOn(musicCacheStore.getState(), 'hydrateFromDbAsync').mockResolvedValue(undefined);
 
       const onFinish = jest.fn();
       render(<AnimatedSplashScreen onFinish={onFinish} />);

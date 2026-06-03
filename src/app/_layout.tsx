@@ -433,33 +433,14 @@ export default function RootLayout() {
   // --- Initialise audio player & pre-fetch server data when logged in ---
   useEffect(() => {
     if (!rehydrated || !isLoggedIn) return;
-    // Hydrate per-row SQLite-backed stores BEFORE any data-sync flow
-    // reads them. Must precede `onStartup()` — the full album-detail walk
-    // it fires checks `albumDetailStore.albums` 1500 ms later, which beats
-    // the splash's own post-migration hydrate in a race on any launch
-    // whose splash animation runs longer than that deferred start.
-    // Symptom of getting this order wrong: a "full library resync" banner
-    // showing `missing = library.length` on every launch.
-    rehydrateAllStores();
-    initPlayer();
-    initScrobbleService();
-    initFailover();
 
-    const offline = offlineModeStore.getState().offlineMode;
+    // If the effect is torn down (logout / fast unmount) before async
+    // hydration resolves, skip the deferred startup work.
+    let cancelled = false;
 
-    // Start auto-offline monitoring if enabled
-    if (autoOfflineStore.getState().enabled) {
-      startAutoOffline();
-    }
-
-    if (!offline) {
-      startMonitoring();
-      // dataSyncService owns the prefetch fan-out (immediate chain +
-      // requestIdleCallback + STARTUP_PREFETCH_SETTLE_MS deferred library
-      // prefetches).
-      onStartup();
-    }
-
+    // Subscriptions don't depend on per-row hydration; register them
+    // synchronously so cleanup is deterministic regardless of when the
+    // async startup chain below settles.
     const unsubAutoOffline = autoOfflineStore.subscribe((state, prev) => {
       if (state.enabled && !prev.enabled) startAutoOffline();
       else if (!state.enabled && prev.enabled) stopAutoOffline();
@@ -480,7 +461,39 @@ export default function RootLayout() {
       }
     });
 
+    // Hydrate per-row SQLite-backed stores BEFORE any data-sync flow reads
+    // them, THEN run the startup chain. `rehydrateAllStores` is async now
+    // (SQLite IO on a background thread + chunked JSON.parse), so we AWAIT it
+    // to preserve the ordering invariant: hydration must complete before
+    // `onStartup()` fires its deferred full album-detail walk, which checks
+    // `albumDetailStore.albums` 1500 ms later. Symptom of getting this order
+    // wrong: a "full library resync" banner showing `missing = library.length`
+    // on every launch.
+    void (async () => {
+      await rehydrateAllStores();
+      if (cancelled) return;
+      initPlayer();
+      initScrobbleService();
+      initFailover();
+
+      const offline = offlineModeStore.getState().offlineMode;
+
+      // Start auto-offline monitoring if enabled
+      if (autoOfflineStore.getState().enabled) {
+        startAutoOffline();
+      }
+
+      if (!offline) {
+        startMonitoring();
+        // dataSyncService owns the prefetch fan-out (immediate chain +
+        // requestIdleCallback + STARTUP_PREFETCH_SETTLE_MS deferred library
+        // prefetches).
+        onStartup();
+      }
+    })();
+
     return () => {
+      cancelled = true;
       unsub();
       unsubAutoOffline();
       stopAutoOffline();

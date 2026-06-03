@@ -114,6 +114,9 @@ export interface ImageCacheState {
   /** Called once at app start via `rehydrateAllStores()`. Pulls aggregates
    *  from SQL and reads the maxConcurrent setting from the KV blob. */
   hydrateFromDb: () => void;
+  /** Async boot-path twin of {@link hydrateFromDb} — aggregates read on a
+   *  background thread. */
+  hydrateFromDbAsync: () => Promise<void>;
   /** Zero every aggregate in memory. Used by `clearImageCache` /
    *  `resetAllStores` after the underlying rows are dropped. */
   reset: () => void;
@@ -145,6 +148,19 @@ export const imageCacheStore = create<ImageCacheState>()((set) => ({
 
   hydrateFromDb: () => {
     const agg = hydrateImageCacheAggregates();
+    const { maxConcurrentImageDownloads } = readSettingsBlob();
+    set({
+      totalBytes: agg.totalBytes,
+      fileCount: agg.fileCount,
+      imageCount: agg.imageCount,
+      incompleteCount: agg.incompleteCount,
+      maxConcurrentImageDownloads,
+      hasHydrated: true,
+    });
+  },
+
+  hydrateFromDbAsync: async () => {
+    const agg = await hydrateImageCacheAggregatesAsync();
     const { maxConcurrentImageDownloads } = readSettingsBlob();
     set({
       totalBytes: agg.totalBytes,

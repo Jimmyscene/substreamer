@@ -19,6 +19,7 @@ import {
   type ImageDownloadQueueRow,
   type ImageDownloadQueueScope,
   hydrateImageDownloadQueue,
+  hydrateImageDownloadQueueAsync,
 } from './persistence/imageDownloadQueueTable';
 import {
   getImageQueueState,
@@ -36,6 +37,9 @@ export interface ImageDownloadQueueState {
 
   /** Re-read the SQL queue + cycle meta into the store. Safe to call repeatedly. */
   hydrateFromDb: () => void;
+  /** Async boot-path twin of {@link hydrateFromDb} — queue read on a
+   * background thread. */
+  hydrateFromDbAsync: () => Promise<void>;
   /** Update only the derived progress fields without re-querying the queue array. */
   refreshProgress: () => void;
 }
@@ -51,6 +55,20 @@ export const imageDownloadQueueStore = create<ImageDownloadQueueState>()((set) =
 
   hydrateFromDb: () => {
     const queue = hydrateImageDownloadQueue();
+    const s = getImageQueueState();
+    set({
+      queue,
+      cycleId: s.cycleId,
+      cycleScope: s.cycleScope,
+      cycleTotal: s.cycleTotal,
+      cycleProcessed: s.processed,
+      cycleFailed: s.failed,
+      isPaused: s.isPaused,
+    });
+  },
+
+  hydrateFromDbAsync: async () => {
+    const queue = await hydrateImageDownloadQueueAsync();
     const s = getImageQueueState();
     set({
       queue,

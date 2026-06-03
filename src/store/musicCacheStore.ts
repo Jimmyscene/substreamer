@@ -28,8 +28,11 @@ import {
   deleteCachedItem as deleteCachedItemRow,
   deleteCachedSong as deleteCachedSongRow,
   hydrateCachedItems,
+  hydrateCachedItemsAsync,
   hydrateCachedSongs,
+  hydrateCachedSongsAsync,
   hydrateDownloadQueue,
+  hydrateDownloadQueueAsync,
   insertDownloadQueueItem,
   markDownloadComplete,
   removeCachedItemSong as removeCachedItemSongRow,
@@ -198,6 +201,9 @@ export interface MusicCacheState {
   /* Lifecycle */
   reset: () => void;
   hydrateFromDb: () => void;
+  /** Async boot-path twin of {@link hydrateFromDb} — reads cached songs/items/
+   * queue on a background thread with chunked mapping. */
+  hydrateFromDbAsync: () => Promise<void>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -507,6 +513,32 @@ export const musicCacheStore = create<MusicCacheState>()((set, get) => ({
     const cachedSongs = hydrateCachedSongs();
     const cachedItems = hydrateCachedItems();
     const downloadQueue = hydrateDownloadQueue();
+    const settings = readSettingsBlob();
+
+    let totalBytes = 0;
+    for (const songId of Object.keys(cachedSongs)) {
+      totalBytes += cachedSongs[songId].bytes;
+    }
+    const totalFiles = Object.keys(cachedSongs).length;
+
+    set({
+      cachedSongs,
+      cachedItems,
+      downloadQueue,
+      maxConcurrentDownloads: settings.maxConcurrentDownloads,
+      totalBytes,
+      totalFiles,
+      hasHydrated: true,
+    });
+  },
+
+  hydrateFromDbAsync: async () => {
+    // Idempotent re-read — see `albumDetailStore.hydrateFromDb` for rationale.
+    // SQLite reads run on a background thread; `readSettingsBlob` stays sync
+    // (small kvStorage blob).
+    const cachedSongs = await hydrateCachedSongsAsync();
+    const cachedItems = await hydrateCachedItemsAsync();
+    const downloadQueue = await hydrateDownloadQueueAsync();
     const settings = readSettingsBlob();
 
     let totalBytes = 0;

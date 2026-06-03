@@ -12,6 +12,7 @@ import {
   clearDetailTables,
   deleteAlbumDetail,
   hydrateAlbumDetails,
+  hydrateAlbumDetailsAsync,
   upsertAlbumDetail,
 } from './persistence/detailTables';
 import { ratingStore } from './ratingStore';
@@ -52,6 +53,10 @@ export interface AlbumDetailState {
   clearAlbums: () => void;
   /** Called once at app start to load persisted rows into memory. */
   hydrateFromDb: () => void;
+  /** Async boot-path twin of {@link hydrateFromDb} — reads on a background
+   * thread and chunks the per-row JSON.parse so a large detail cache doesn't
+   * block the JS thread. Used by `rehydrateAllStores`. */
+  hydrateFromDbAsync: () => Promise<void>;
 }
 
 export const albumDetailStore = create<AlbumDetailState>()((set, get) => ({
@@ -177,6 +182,11 @@ export const albumDetailStore = create<AlbumDetailState>()((set, get) => ({
     // without losing data — every write path is write-through so the SQL
     // table is the canonical source of truth.
     const restored = hydrateAlbumDetails();
+    set({ albums: restored, hasHydrated: true });
+  },
+
+  hydrateFromDbAsync: async () => {
+    const restored = await hydrateAlbumDetailsAsync();
     set({ albums: restored, hasHydrated: true });
   },
 }));

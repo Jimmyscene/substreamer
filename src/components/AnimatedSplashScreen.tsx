@@ -140,7 +140,12 @@ export default function AnimatedSplashScreen({ onFinish }: Props) {
       runMigrations(completedVersion)
         .then((finalVersion) => {
           migrationStore.getState().setCompletedVersion(finalVersion);
-          rehydrateAllStores();
+          // Kick off async hydration (SQLite IO on a background thread). It's
+          // fire-and-forget here: stores populate reactively, and the
+          // `_layout` effect independently AWAITS rehydration before
+          // `onStartup()` — that is the authoritative ordering gate against
+          // the "full library resync" banner.
+          void rehydrateAllStores();
           setMigrationPhase('done');
         })
         .catch((e) => {
@@ -210,8 +215,11 @@ export default function AnimatedSplashScreen({ onFinish }: Props) {
 
     if (pending.length === 0) {
       // No migrations to run, but the per-row stores still need to be
-      // hydrated from SQLite on every launch.
-      rehydrateAllStores();
+      // hydrated from SQLite on every launch. Fire async hydration (IO on a
+      // background thread) and fade out; the stores populate reactively and
+      // the `_layout` effect independently awaits hydration before
+      // `onStartup()`.
+      void rehydrateAllStores();
       fadeOut();
       return;
     }

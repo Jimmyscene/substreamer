@@ -23,9 +23,17 @@ export interface RehydrationResult {
  * each store's `hydrateFromDb()` re-reads the current SQL state and
  * replaces its in-memory mirror, safe under our write-through semantics.
  *
- * Order is stable but has no FK-style dependency; each store hydrates
- * independently. Keep the current order so new stores have an obvious
- * place to plug in.
+ * Each store hydrates independently — no FK-style dependency between them —
+ * so they run **concurrently** via `Promise.all`. The per-store SQLite reads
+ * (`getAllAsync`/`getFirstAsync`) execute on expo-sqlite's background IO
+ * thread, and the JS-side JSON.parse / row-mapping is chunked with
+ * `setTimeout(0)` yields inside each `hydrateFromDbAsync`, so boot hydration
+ * never blocks the JS thread for long even on a large library. Concurrent
+ * reads queue on the native IO dispatcher; correctness is unaffected because
+ * each store writes only its own slice of state.
+ *
+ * Each store hydrates in its own try/catch so a corrupt row in one store
+ * cannot block the others; the caller receives a structured result.
  *
  * **Not exported from `./index.ts`.** This module imports stores; stores
  * import from `./index.ts` for table helpers. Re-exporting here would
@@ -36,28 +44,30 @@ export interface RehydrationResult {
  * by this helper — Zustand's `persist` middleware auto-rehydrates them on
  * store creation.
  */
-export function rehydrateAllStores(): RehydrationResult {
+export async function rehydrateAllStores(): Promise<RehydrationResult> {
   const result: RehydrationResult = { succeeded: [], failed: [] };
-  const stores: Array<[string, () => void]> = [
-    ['albumDetail', () => albumDetailStore.getState().hydrateFromDb()],
-    ['songIndex', () => songIndexStore.getState().hydrateFromDb()],
-    ['completedScrobble', () => completedScrobbleStore.getState().hydrateFromDb()],
-    ['pendingScrobble', () => pendingScrobbleStore.getState().hydrateFromDb()],
-    ['musicCache', () => musicCacheStore.getState().hydrateFromDb()],
-    ['imageCache', () => imageCacheStore.getState().hydrateFromDb()],
-    ['imageDownloadQueue', () => imageDownloadQueueStore.getState().hydrateFromDb()],
+  const stores: Array<[string, () => Promise<void>]> = [
+    ['albumDetail', () => albumDetailStore.getState().hydrateFromDbAsync()],
+    ['songIndex', () => songIndexStore.getState().hydrateFromDbAsync()],
+    ['completedScrobble', () => completedScrobbleStore.getState().hydrateFromDbAsync()],
+    ['pendingScrobble', () => pendingScrobbleStore.getState().hydrateFromDbAsync()],
+    ['musicCache', () => musicCacheStore.getState().hydrateFromDbAsync()],
+    ['imageCache', () => imageCacheStore.getState().hydrateFromDbAsync()],
+    ['imageDownloadQueue', () => imageDownloadQueueStore.getState().hydrateFromDbAsync()],
   ];
-  for (const [name, hydrate] of stores) {
-    try {
-      hydrate();
-      result.succeeded.push(name);
-    } catch (e) {
-      result.failed.push({
-        store: name,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
+  await Promise.all(
+    stores.map(async ([name, hydrate]) => {
+      try {
+        await hydrate();
+        result.succeeded.push(name);
+      } catch (e) {
+        result.failed.push({
+          store: name,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }),
+  );
   if (result.failed.length > 0) {
     // eslint-disable-next-line no-console
     console.warn('[rehydrateAllStores] partial failure', result.failed);

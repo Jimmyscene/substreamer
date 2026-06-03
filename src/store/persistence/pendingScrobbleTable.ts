@@ -53,6 +53,53 @@ export function hydratePendingScrobbles(): PendingScrobble[] {
   }
 }
 
+/** Pending rows parsed per macrotask yield during async hydration. */
+const PENDING_PARSE_CHUNK = 1000;
+
+/**
+ * Async counterpart of {@link hydratePendingScrobbles}. Read on the
+ * background thread + chunked `JSON.parse` with `setTimeout(0)` yields so the
+ * boot path doesn't block the JS thread. setTimeout, not rAF (rAF can stall
+ * on RN 0.85/Fabric).
+ */
+export async function hydratePendingScrobblesAsync(): Promise<PendingScrobble[]> {
+  const db = getDb();
+  if (db === null) return [];
+  try {
+    const rows = await db.getAllAsync<{ id: string; song_json: string; time: number }>(
+      'SELECT id, song_json, time FROM pending_scrobble_events ORDER BY time ASC;',
+    );
+    const out: PendingScrobble[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (i > 0 && i % PENDING_PARSE_CHUNK === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      if (!row.id || seen.has(row.id)) continue;
+      let song: unknown;
+      try {
+        song = JSON.parse(row.song_json);
+      } catch {
+        continue;
+      }
+      if (
+        !song ||
+        typeof song !== 'object' ||
+        !(song as { id?: unknown }).id ||
+        !(song as { title?: unknown }).title
+      ) {
+        continue;
+      }
+      seen.add(row.id);
+      out.push({ id: row.id, song: song as PendingScrobble['song'], time: row.time });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Diagnostic — total pending row count. */
 export function countPendingScrobbles(): number {
   const db = getDb();

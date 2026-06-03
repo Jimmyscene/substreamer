@@ -54,6 +54,54 @@ export function hydrateScrobbles(): CompletedScrobble[] {
   }
 }
 
+/** Scrobble rows parsed per macrotask yield during async hydration. */
+const SCROBBLE_PARSE_CHUNK = 1000;
+
+/**
+ * Async counterpart of {@link hydrateScrobbles}. The read runs on
+ * expo-sqlite's background thread (`getAllAsync`) and the per-row
+ * `JSON.parse(song_json)` is chunked with `setTimeout(0)` yields so a large
+ * scrobble history doesn't freeze the JS thread at boot. setTimeout, not
+ * rAF — rAF can stall on RN 0.85/Fabric.
+ */
+export async function hydrateScrobblesAsync(): Promise<CompletedScrobble[]> {
+  const db = getDb();
+  if (db === null) return [];
+  try {
+    const rows = await db.getAllAsync<{ id: string; song_json: string; time: number }>(
+      'SELECT id, song_json, time FROM scrobble_events ORDER BY time ASC;',
+    );
+    const out: CompletedScrobble[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (i > 0 && i % SCROBBLE_PARSE_CHUNK === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      if (!row.id || seen.has(row.id)) continue;
+      let song: unknown;
+      try {
+        song = JSON.parse(row.song_json);
+      } catch {
+        continue;
+      }
+      if (
+        !song ||
+        typeof song !== 'object' ||
+        !(song as { id?: unknown }).id ||
+        !(song as { title?: unknown }).title
+      ) {
+        continue;
+      }
+      seen.add(row.id);
+      out.push({ id: row.id, song: song as CompletedScrobble['song'], time: row.time });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Return the total scrobble row count. Used by diagnostics. */
 export function countScrobbles(): number {
   const db = getDb();
