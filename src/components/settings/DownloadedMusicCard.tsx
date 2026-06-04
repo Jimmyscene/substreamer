@@ -21,7 +21,7 @@ import {
   canDownloadFullLibrary,
   enqueueFullLibraryDownload,
 } from '../../services/fullLibraryDownloadService';
-import { clearDownloadQueue } from '../../services/musicCacheService';
+import { clearQueuedDownloads } from '../../services/musicCacheService';
 import { fireAndForget } from '../../utils/fireAndForget';
 import { formatBytes } from '../../utils/formatters';
 import { SettingsSectionTitle } from './SettingsSectionTitle';
@@ -84,10 +84,11 @@ export function DownloadedMusicCard() {
     );
   }, [alert, t, musicQueueCount]);
 
-  // Cancelling stops adding more AND clears whatever was queued so far.
+  // Cancelling stops adding more AND clears everything still queued, but lets
+  // the item that's actively downloading finish so it lands in a clean state.
   const handleCancelFullLibrary = useCallback(() => {
     fullLibraryDownloadStore.getState().cancel();
-    clearDownloadQueue();
+    clearQueuedDownloads();
   }, []);
 
   // Surface preparing/queueing failures to the user, then clear the flag.

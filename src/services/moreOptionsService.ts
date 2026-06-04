@@ -19,6 +19,7 @@ import { shuffleArray } from '../utils/arrayHelpers';
 import {
   deleteCachedItem as deleteCachedItemService,
   enqueueSongDownload as enqueueSongDownloadService,
+  removeCachedAlbumSong as removeCachedAlbumSongService,
 } from './musicCacheService';
 import { addToQueue, playSongNext, playTrack, removeFromQueue } from './playerService';
 import {
@@ -492,18 +493,36 @@ export async function handleDownloadSong(song: Child): Promise<void> {
 }
 
 /**
- * Remove a single-song download. Deletes the synthetic `song:` item — the
- * service layer refcounts the underlying song and only removes the file if
- * nothing else references it.
+ * Remove a song's download. Covers both ways a song can be cached:
+ *   1. A synthetic `song:` item (explicit single-song download).
+ *   2. Pooled via its parent album — that album edge is dropped, reverting
+ *      the album to a partial download.
+ * The service layer refcounts the underlying song and only deletes the file
+ * once nothing else references it.
  */
 export function handleRemoveSongDownload(song: Child): void {
   if (!song?.id) return;
-  const itemId = songItemId(song.id);
   try {
-    deleteCachedItemService(itemId);
-    processingOverlayStore.getState().showSuccess(
-      i18n.t('songDownloadRemoved', { title: song.title ?? i18n.t('unknownSong') }),
-    );
+    let removed = false;
+
+    // Explicit single-song download edge, if any.
+    if (musicCacheStore.getState().cachedItems[songItemId(song.id)]) {
+      deleteCachedItemService(songItemId(song.id));
+      removed = true;
+    }
+
+    // Pooled via its parent album → drop the album edge (album becomes partial).
+    if (song.albumId && removeCachedAlbumSongService(song.albumId, song.id)) {
+      removed = true;
+    }
+
+    if (removed) {
+      processingOverlayStore.getState().showSuccess(
+        i18n.t('songDownloadRemoved', { title: song.title ?? i18n.t('unknownSong') }),
+      );
+    } else {
+      processingOverlayStore.getState().showError(i18n.t('failedToLoad'));
+    }
   } catch {
     processingOverlayStore.getState().showError(i18n.t('failedToLoad'));
   }

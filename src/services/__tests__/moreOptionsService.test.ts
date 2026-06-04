@@ -11,6 +11,7 @@ jest.mock('../musicCacheService', () => ({
   enqueuePlaylistDownload: jest.fn(),
   enqueueSongDownload: jest.fn().mockResolvedValue(undefined),
   deleteCachedItem: jest.fn(),
+  removeCachedAlbumSong: jest.fn(),
   cancelDownload: jest.fn(),
 }));
 
@@ -95,6 +96,7 @@ import { addToQueue, playTrack, removeFromQueue } from '../playerService';
 import {
   enqueueSongDownload as mockEnqueueSongDownload,
   deleteCachedItem as mockDeleteCachedItem,
+  removeCachedAlbumSong as mockRemoveCachedAlbumSong,
 } from '../musicCacheService';
 import {
   starSong,
@@ -1111,14 +1113,25 @@ describe('handleDownloadSong', () => {
 
 describe('handleRemoveSongDownload', () => {
   const mockDelete = mockDeleteCachedItem as jest.Mock;
+  const mockRemoveAlbumSong = mockRemoveCachedAlbumSong as jest.Mock;
+  const mockGetState = musicCacheStore.getState as jest.Mock;
+
+  /** Make `cachedItems` report the given ids as present. */
+  const withCachedItems = (...ids: string[]) => {
+    const cachedItems: Record<string, unknown> = {};
+    for (const id of ids) cachedItems[id] = { type: 'album' };
+    mockGetState.mockReturnValue({ cachedItems });
+  };
 
   it('no-ops on falsy song', () => {
     handleRemoveSongDownload(undefined as any);
     handleRemoveSongDownload({} as any);
     expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRemoveAlbumSong).not.toHaveBeenCalled();
   });
 
   it('deletes the song: item and shows a success toast', () => {
+    withCachedItems('song:s1');
     const song = { id: 's1', title: 'Cool Song' } as any;
     handleRemoveSongDownload(song);
     expect(mockDelete).toHaveBeenCalledWith('song:s1');
@@ -1126,12 +1139,32 @@ describe('handleRemoveSongDownload', () => {
   });
 
   it('falls back to unknownSong when title is missing', () => {
+    withCachedItems('song:s1');
     const song = { id: 's1' } as any;
     handleRemoveSongDownload(song);
     expect(mockOverlayShowSuccess).toHaveBeenCalledWith('Removed "Unknown Song"');
   });
 
+  it('removes the song from its parent album (reverts album to partial)', () => {
+    mockGetState.mockReturnValue({ cachedItems: {} }); // no explicit song: item
+    mockRemoveAlbumSong.mockReturnValueOnce(true);
+    const song = { id: 's1', title: 'Cool Song', albumId: 'alb1' } as any;
+    handleRemoveSongDownload(song);
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(mockRemoveAlbumSong).toHaveBeenCalledWith('alb1', 's1');
+    expect(mockOverlayShowSuccess).toHaveBeenCalledWith('Removed "Cool Song"');
+  });
+
+  it('shows error overlay when nothing was removed', () => {
+    mockGetState.mockReturnValue({ cachedItems: {} });
+    mockRemoveAlbumSong.mockReturnValueOnce(false);
+    const song = { id: 's1', title: 'Cool Song', albumId: 'alb1' } as any;
+    handleRemoveSongDownload(song);
+    expect(mockOverlayShowError).toHaveBeenCalledWith('Failed to load');
+  });
+
   it('shows error overlay when delete throws', () => {
+    withCachedItems('song:s1');
     mockDelete.mockImplementationOnce(() => { throw new Error('nope'); });
     const song = { id: 's1', title: 'Cool Song' } as any;
     handleRemoveSongDownload(song);

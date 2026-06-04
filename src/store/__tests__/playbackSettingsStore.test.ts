@@ -1,6 +1,6 @@
 jest.mock('../persistence/kvStorage', () => require('../persistence/__mocks__/kvStorage'));
 
-import { FORMAT_PRESETS, playbackSettingsStore } from '../playbackSettingsStore';
+import { FORMAT_PRESETS, migratePlaybackSettings, playbackSettingsStore } from '../playbackSettingsStore';
 
 beforeEach(() => {
   playbackSettingsStore.setState({
@@ -11,8 +11,8 @@ beforeEach(() => {
     playbackRate: 1,
     downloadMaxBitRate: 320,
     downloadFormat: 'mp3',
-    showSkipIntervalButtons: false,
-    showSleepTimerButton: false,
+    showSkipIntervalButtons: true,
+    showSleepTimerButton: true,
     skipBackwardInterval: 15,
     skipForwardInterval: 30,
     remoteControlMode: 'skip-track',
@@ -100,12 +100,41 @@ describe('playbackSettingsStore', () => {
 
   it('defaults for skip interval fields', () => {
     const state = playbackSettingsStore.getState();
-    expect(state.showSkipIntervalButtons).toBe(false);
-    expect(state.showSleepTimerButton).toBe(false);
+    // Sleep-timer + skip-interval buttons ship enabled by default so users
+    // can find them (they're frequently requested when hidden).
+    expect(state.showSkipIntervalButtons).toBe(true);
+    expect(state.showSleepTimerButton).toBe(true);
     expect(state.skipBackwardInterval).toBe(15);
     expect(state.skipForwardInterval).toBe(30);
     expect(state.remoteControlMode).toBe('skip-track');
     expect(state.artistPlayMode).toBe('topSongs');
+  });
+
+  describe('migratePlaybackSettings (v0 → v1)', () => {
+    it('force-enables both button flags for users upgrading from v0', () => {
+      const result = migratePlaybackSettings(
+        { showSkipIntervalButtons: false, showSleepTimerButton: false, repeatMode: 'all' },
+        0,
+      );
+      expect(result.showSkipIntervalButtons).toBe(true);
+      expect(result.showSleepTimerButton).toBe(true);
+      // Unrelated settings are preserved.
+      expect(result.repeatMode).toBe('all');
+    });
+
+    it('also runs when version is undefined (pre-versioned blob)', () => {
+      const result = migratePlaybackSettings({ showSleepTimerButton: false }, undefined as any);
+      expect(result.showSleepTimerButton).toBe(true);
+    });
+
+    it('leaves a v1+ blob untouched so later user changes persist', () => {
+      const blob = { showSkipIntervalButtons: false, showSleepTimerButton: false };
+      expect(migratePlaybackSettings(blob, 1)).toBe(blob);
+    });
+
+    it('passes through a null/invalid blob unchanged', () => {
+      expect(migratePlaybackSettings(null, 0)).toBeNull();
+    });
   });
 
   describe('format normalization', () => {

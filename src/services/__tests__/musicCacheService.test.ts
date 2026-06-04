@@ -267,6 +267,7 @@ import {
   syncCachedItemTracks,
   cancelDownload,
   clearDownloadQueue,
+  clearQueuedDownloads,
   clearMusicCache,
   getMusicCacheStats,
   resumeIfSpaceAvailable,
@@ -279,6 +280,7 @@ import {
   waitForTrackMapsReady,
   computeAlbumRemovalOutcome,
   demoteAlbumToPartial,
+  removeCachedAlbumSong,
 } from '../musicCacheService';
 
 import type { Child } from '../subsonicService';
@@ -517,6 +519,44 @@ describe('isItemCached', () => {
 /* ------------------------------------------------------------------ */
 /*  getTrackQueueStatus                                                */
 /* ------------------------------------------------------------------ */
+
+describe('clearQueuedDownloads', () => {
+  const makeQueueItem = (queueId: string, status: 'queued' | 'downloading' | 'error') => ({
+    queueId,
+    itemId: `album-${queueId}`,
+    type: 'album' as const,
+    name: 'X',
+    status,
+    totalSongs: 1,
+    completedSongs: 0,
+    addedAt: 0,
+    queuePosition: 1,
+    songsJson: JSON.stringify([{ id: `track-${queueId}` }]),
+  });
+
+  it('removes queued/errored items but leaves the active download running', () => {
+    musicCacheStore.setState({
+      downloadQueue: [
+        makeQueueItem('q1', 'downloading'),
+        makeQueueItem('q2', 'queued'),
+        makeQueueItem('q3', 'queued'),
+        makeQueueItem('q4', 'error'),
+      ],
+    } as any);
+
+    clearQueuedDownloads();
+
+    const remaining = musicCacheStore.getState().downloadQueue;
+    expect(remaining.map((q) => q.queueId)).toEqual(['q1']);
+    expect(remaining[0].status).toBe('downloading');
+  });
+
+  it('no-ops on an empty queue', () => {
+    musicCacheStore.setState({ downloadQueue: [] } as any);
+    clearQueuedDownloads();
+    expect(musicCacheStore.getState().downloadQueue).toEqual([]);
+  });
+});
 
 describe('getTrackQueueStatus', () => {
   it('returns null when track is not in queue', () => {
@@ -1420,6 +1460,75 @@ describe('removeCachedPlaylistTrack', () => {
 
   it('no-op for missing item', () => {
     removeCachedPlaylistTrack('missing', 0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  removeCachedAlbumSong                                              */
+/* ------------------------------------------------------------------ */
+
+describe('removeCachedAlbumSong', () => {
+  it('returns false for a non-album item', () => {
+    seedSong(makeCachedSong('s1'));
+    seedItem('pl-1', { type: 'playlist', songIds: ['s1'] });
+    expect(removeCachedAlbumSong('pl-1', 's1')).toBe(false);
+    expect(musicCacheStore.getState().cachedItems['pl-1'].songIds).toEqual(['s1']);
+  });
+
+  it('returns false when the song is not in the album', () => {
+    seedSong(makeCachedSong('s1'));
+    seedItem('album-1', { type: 'album', songIds: ['s1'], expectedSongCount: 1 });
+    expect(removeCachedAlbumSong('album-1', 'nope')).toBe(false);
+  });
+
+  it('removes the edge + file and reverts a complete album to partial', () => {
+    mockFileExists = true;
+    seedSong(makeCachedSong('s1'));
+    seedSong(makeCachedSong('s2'));
+    seedSong(makeCachedSong('s3'));
+    seedItem('album-1', {
+      type: 'album',
+      songIds: ['s1', 's2', 's3'],
+      expectedSongCount: 3,
+      downloadedAt: 555,
+    });
+
+    expect(removeCachedAlbumSong('album-1', 's2')).toBe(true);
+
+    const album = musicCacheStore.getState().cachedItems['album-1'];
+    expect(album).toBeDefined();
+    expect(album.downloadedAt).toBe(555);
+    expect(album.songIds).toEqual(['s1', 's3']);
+    // Now partial: 2 of 3.
+    expect(album.songIds.length).toBeLessThan(album.expectedSongCount);
+    expect(fileDeletes.some((u) => u.includes('s2'))).toBe(true);
+  });
+
+  it('preserves the file when the song is still referenced elsewhere', () => {
+    mockFileExists = true;
+    seedSong(makeCachedSong('s1'));
+    seedSong(makeCachedSong('s2'));
+    seedItem('album-1', { type: 'album', songIds: ['s1', 's2'], expectedSongCount: 2 });
+    seedItem('pl-1', { type: 'playlist', songIds: ['s1'] });
+
+    expect(removeCachedAlbumSong('album-1', 's1')).toBe(true);
+    // s1 survives in pl-1 → file kept; album-1 now partial.
+    expect(fileDeletes.some((u) => u.includes('s1'))).toBe(false);
+    expect(musicCacheStore.getState().cachedItems['album-1'].songIds).toEqual(['s2']);
+  });
+
+  it('removing the last remaining track deletes the album row', () => {
+    mockFileExists = true;
+    seedSong(makeCachedSong('s1'));
+    seedItem('album-1', { type: 'album', songIds: ['s1'], expectedSongCount: 1 });
+
+    expect(removeCachedAlbumSong('album-1', 's1')).toBe(true);
+    expect(musicCacheStore.getState().cachedItems['album-1']).toBeUndefined();
+    expect(fileDeletes.some((u) => u.includes('s1'))).toBe(true);
+  });
+
+  it('returns false for a missing item', () => {
+    expect(removeCachedAlbumSong('missing', 's1')).toBe(false);
   });
 });
 

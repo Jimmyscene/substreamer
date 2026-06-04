@@ -1657,6 +1657,44 @@ export function removeCachedPlaylistTrack(itemId: string, trackIndex: number): v
   }
 }
 
+/**
+ * Remove a single song from a downloaded album, reverting the album to a
+ * partial download. Deletes the underlying file iff the song's refcount hits
+ * zero (it isn't also referenced by a playlist / favorites / single-song
+ * download). If the song was the album's last remaining track, the whole
+ * `cached_items` row is removed instead. Returns true when something changed.
+ */
+export function removeCachedAlbumSong(albumItemId: string, songId: string): boolean {
+  const cached = musicCacheStore.getState().cachedItems[albumItemId];
+  if (!cached || cached.type !== 'album') return false;
+  const idx = cached.songIds.indexOf(songId);
+  if (idx < 0) return false;
+
+  // Removing the album's last remaining track → drop the album entirely.
+  if (cached.songIds.length === 1) {
+    deleteCachedItem(albumItemId);
+    return true;
+  }
+
+  const song = musicCacheStore.getState().cachedSongs[songId];
+  const { orphanedSongId } = musicCacheStore.getState().removeCachedItemSong(
+    albumItemId,
+    idx + 1, // SQL positions are 1-indexed
+  );
+  trackToItems.get(songId)?.delete(albumItemId);
+  if (orphanedSongId && song) {
+    trackToItems.delete(orphanedSongId);
+    trackUriMap.delete(orphanedSongId);
+    const file = resolveSongFile(song);
+    if (file.exists) {
+      try { file.delete(); } catch { /* best-effort */ }
+    }
+  }
+
+  resumeIfSpaceAvailable();
+  return true;
+}
+
 /** Reorder songs within a cached item. No file changes. */
 export function reorderCachedPlaylistTracks(
   itemId: string,
@@ -1878,6 +1916,23 @@ export function clearDownloadQueue(): void {
     cancelDownload(item.queueId);
   }
   resumeIfSpaceAvailable();
+}
+
+/**
+ * Stop the queue without interrupting active transfers: remove every item that
+ * hasn't started yet and let anything currently downloading run to completion.
+ *
+ * Used by the "stop full-library download" control. Aborting an in-flight album
+ * mid-transfer is what left albums in a broken "downloaded" state (a row with
+ * no/partial songs on disk); letting the active item finish means it commits a
+ * clean complete row, and the untouched queued items never created rows at all.
+ */
+export function clearQueuedDownloads(): void {
+  const queue = [...musicCacheStore.getState().downloadQueue];
+  for (const item of queue) {
+    if (item.status === 'downloading') continue;
+    cancelDownload(item.queueId);
+  }
 }
 
 /**

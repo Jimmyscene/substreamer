@@ -123,6 +123,25 @@ export interface PlaybackSettingsState {
 
 const PERSIST_KEY = 'substreamer-playback-settings';
 
+/**
+ * v1 — one-time enable of the sleep-timer + skip-interval buttons. These
+ * shipped hidden behind off-by-default toggles and users kept asking for
+ * features that were already there. This flips them on once for everyone
+ * upgrading from v0; whatever the user sets afterwards persists normally
+ * and is never overwritten again.
+ */
+export function migratePlaybackSettings(persisted: any, version: number) {
+  if (!persisted || typeof persisted !== 'object') return persisted;
+  if (version === 0 || version === undefined) {
+    return {
+      ...persisted,
+      showSkipIntervalButtons: true,
+      showSleepTimerButton: true,
+    };
+  }
+  return persisted;
+}
+
 export const playbackSettingsStore = create<PlaybackSettingsState>()(
   persist(
     (set) => ({
@@ -133,8 +152,8 @@ export const playbackSettingsStore = create<PlaybackSettingsState>()(
       playbackRate: 1,
       downloadMaxBitRate: 320,
       downloadFormat: 'mp3',
-      showSkipIntervalButtons: false,
-      showSleepTimerButton: false,
+      showSkipIntervalButtons: true,
+      showSleepTimerButton: true,
       skipBackwardInterval: 15,
       skipForwardInterval: 30,
       remoteControlMode: 'skip-track',
@@ -156,6 +175,8 @@ export const playbackSettingsStore = create<PlaybackSettingsState>()(
     }),
     {
       name: PERSIST_KEY,
+      version: 1,
+      migrate: migratePlaybackSettings,
       storage: createJSONStorage(() => kvStorage),
       partialize: (state) => ({
         maxBitRate: state.maxBitRate,

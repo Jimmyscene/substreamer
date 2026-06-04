@@ -222,6 +222,19 @@ export function MoreOptionsSheet() {
       [songId],
     ),
   );
+  // Whether this song is pooled via a downloaded album the user controls.
+  // Removing it then reverts that album to a partial download.
+  const songAlbumId = entity?.type === 'song' ? (entity.item.albumId ?? '') : '';
+  const albumContainsSong = musicCacheStore(
+    useCallback(
+      (s) => {
+        if (!songAlbumId || !songId) return false;
+        const album = s.cachedItems[songAlbumId];
+        return Boolean(album && album.type === 'album' && album.songIds.includes(songId));
+      },
+      [songAlbumId, songId],
+    ),
+  );
 
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -595,12 +608,12 @@ export function MoreOptionsSheet() {
   const showShare = !offline && canShare(entity) && canUserShare();
   const showDownload = canDownload(entity);
   // Single-song download controls (song rows only).
-  // - Show "Remove Download" when a `song:${id}` item exists (user explicitly
-  //   downloaded this song).
+  // - Show "Remove Download" when the song is explicitly downloaded
+  //   (`song:${id}` item) OR pooled via a downloaded album — removing it
+  //   reverts that album to a partial download.
   // - Show "Download Song" when song isn't already pooled AND we're online.
-  //   Hide both if the song is pooled via an album / playlist the user owns
-  //   (user should remove it via the parent item).
-  const showRemoveSongDownload = entity?.type === 'song' && hasSongItem;
+  const showRemoveSongDownload =
+    entity?.type === 'song' && (hasSongItem || albumContainsSong);
   const showDownloadSong =
     entity?.type === 'song' &&
     !offline &&
