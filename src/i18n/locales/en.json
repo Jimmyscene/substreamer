@@ -876,7 +876,7 @@
   "create": "Create",
   "jumpBackIn": "Jump back in",
   "noScrobbleExclusions": "No Scrobble Exclusions",
-  "scrobbleExclusionsSubtitle": "Exclusions you set from an album, artist, or playlist menu will appear here.",
+  "scrobbleExclusionsSubtitle": "Exclusions you set from an album or artist menu will appear here.",
   "genres": "Genres",
   "openTunedIn": "Open Tuned In",
   "shuffleQueue": "Shuffle queue",

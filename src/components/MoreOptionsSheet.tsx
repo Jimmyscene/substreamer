@@ -172,7 +172,12 @@ function isRatable(entity: MoreOptionsEntity): boolean {
 }
 
 function canExcludeFromScrobbling(entity: MoreOptionsEntity): boolean {
-  return entity.type === 'album' || entity.type === 'artist' || entity.type === 'playlist';
+  // Playlist exclusion is intentionally NOT offered: it only suppresses
+  // scrobbles when a track is played from that playlist's context, so the same
+  // track still scrobbles when played from its album — a leaky, confusing
+  // option. Album/artist exclusion keys off stable song.albumId/artistId and
+  // applies regardless of playback context.
+  return entity.type === 'album' || entity.type === 'artist';
 }
 
 function getEntityUserRating(entity: MoreOptionsEntity | null): number | undefined {
