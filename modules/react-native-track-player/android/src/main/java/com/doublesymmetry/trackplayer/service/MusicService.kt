@@ -270,7 +270,13 @@ class MusicService : HeadlessJsMediaService() {
             handleAudioFocus = playerOptions?.getBoolean(AUTO_HANDLE_INTERRUPTIONS) ?: true,
             interceptPlayerActionsTriggeredExternally = true,
             skipSilence = playerOptions?.getBoolean(SKIP_SILENCE) ?: false,
-            wakeMode = playerOptions?.getInt(WAKE_MODE, 0) ?: 0
+            // Default to WAKE_MODE_NETWORK (2) instead of WAKE_MODE_NONE (0):
+            // holds a CPU wake lock AND a Wi-Fi lock while playing so screen-off /
+            // backgrounded streaming doesn't stall on a buffer underrun (Google's
+            // recommended mode for network playback). Harmless for local files —
+            // the Wi-Fi lock is only held while actually playing and released on
+            // pause/stop. Especially relevant on power-aggressive OEMs / Fire OS.
+            wakeMode = playerOptions?.getInt(WAKE_MODE, 2) ?: 2
         )
         player = QueuedAudioPlayer(this@MusicService, options)
         fakePlayer.release()
