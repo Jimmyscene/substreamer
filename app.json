@@ -88,6 +88,7 @@
           "isIosBackgroundLocationEnabled": false
         }
       ],
+      "./plugins/location-feature-optional",
       "./plugins/strip-push-entitlement",
       "expo-notifications",
       "expo-sharing",
