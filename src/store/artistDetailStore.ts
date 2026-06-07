@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
 import { getOverride, mbidOverrideStore } from './mbidOverrideStore';
-import { kvStorage } from './persistence';
+import { createDebouncedPersistStorage } from './persistence';
 
 import { prefetchCoverArt } from '../services/imageCacheService';
 import {
@@ -268,7 +268,7 @@ export const artistDetailStore = create<ArtistDetailState>()(
     }),
     {
       name: PERSIST_KEY,
-      storage: createJSONStorage(() => kvStorage),
+      storage: createDebouncedPersistStorage(),
       partialize: (state) => ({
         artists: state.artists,
       }),
