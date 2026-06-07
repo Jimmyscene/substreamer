@@ -1411,12 +1411,10 @@ export async function redownloadTrack(
   const existingSong = musicCacheStore.getState().cachedSongs[trackId];
   if (!existingSong) return false;
 
-  // Delete the old file from disk.
+  // Resolve the existing file but DON'T delete it yet — download the new copy
+  // to a .tmp first and swap atomically, so a failed/partial redownload leaves
+  // the existing working file (and its trackUriMap entry) intact.
   const oldFile = resolveSongFile(existingSong);
-  if (oldFile.exists) {
-    try { oldFile.delete(); } catch { /* best-effort */ }
-  }
-  trackUriMap.delete(trackId);
 
   await ensureCoverArtAuth();
   const url = getDownloadStreamUrl(trackId);
@@ -1429,8 +1427,28 @@ export async function redownloadTrack(
 
   try {
     const dest = new File(albumDir, fileName);
-    await File.downloadFileAsync(url, dest);
-    const bytes = dest.exists ? dest.size ?? 0 : 0;
+    const tmp = new File(albumDir, `${fileName}.tmp`);
+    if (tmp.exists) {
+      try { tmp.delete(); } catch { /* best-effort */ }
+    }
+    await File.downloadFileAsync(url, tmp);
+    const bytes = tmp.exists ? tmp.size ?? 0 : 0;
+    if (bytes === 0) {
+      // Empty/failed download — discard the tmp and keep the existing file.
+      try { tmp.delete(); } catch { /* best-effort */ }
+      return false;
+    }
+
+    // Download succeeded — swap in the new file. The old file's extension may
+    // differ from the new one, so delete it explicitly, then move tmp → dest.
+    if (oldFile.exists && oldFile.uri !== dest.uri) {
+      try { oldFile.delete(); } catch { /* best-effort */ }
+    }
+    if (dest.exists) {
+      try { dest.delete(); } catch { /* best-effort */ }
+    }
+    await tmp.move(dest);
+    trackUriMap.delete(trackId);
 
     const effectiveFmt = resolveEffectiveFormat({
       sourceSuffix: existingSong.suffix,
