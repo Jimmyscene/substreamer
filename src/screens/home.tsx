@@ -50,6 +50,9 @@ import { searchStore } from '../store/searchStore';
 import { absoluteFill } from '../utils/styles';
 const CARD_WIDTH = 150;
 const CARD_GAP = 12;
+// Stable module-level separator so FlashList isn't handed a fresh component
+// identity on every render of each horizontal section.
+const CardSeparator = () => <View style={{ width: CARD_GAP }} />;
 // Render off-screen items eagerly so horizontal FlashLists nested below the
 // vertical home-screen ScrollView paint before the user scrolls them into
 // view. Without this, FlashList v2's lazy viewport measurement under the
@@ -136,6 +139,12 @@ function AlbumSection({
     []
   );
   const keyExtractor = useCallback((item: AlbumID3) => item.id, []);
+  // Memoise the filtered/sliced list so FlashList isn't handed a brand-new array
+  // (and forced to reconcile) on every render of the parent screen.
+  const listData = useMemo(
+    () => albums.filter((a) => a.id).slice(0, LIST_LENGTH_DISPLAY_CAP),
+    [albums],
+  );
   const onRefresh = useCallback(() => {
     config.refresh();
   }, [listType]);
@@ -206,13 +215,13 @@ function AlbumSection({
           // `item.id`, so an id-less item yields an `undefined` key that
           // corrupts FlashList recycling (a stuck-placeholder vector). Such a
           // card can't render art, cache, or navigate anyway — drop it.
-          data={albums.filter((a) => a.id).slice(0, LIST_LENGTH_DISPLAY_CAP)}
+          data={listData}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          ItemSeparatorComponent={CardSeparator}
           drawDistance={HORIZONTAL_DRAW_DISTANCE}
         />
       )}
@@ -251,7 +260,7 @@ function DownloadedAlbumSection({
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          ItemSeparatorComponent={CardSeparator}
           drawDistance={HORIZONTAL_DRAW_DISTANCE}
         />
       )}
@@ -290,7 +299,7 @@ function PlaylistSection({
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          ItemSeparatorComponent={CardSeparator}
           drawDistance={HORIZONTAL_DRAW_DISTANCE}
         />
       )}

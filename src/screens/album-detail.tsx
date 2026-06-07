@@ -238,8 +238,8 @@ export function AlbumDetailScreen() {
   );
 
   const keyExtractor = useCallback(
-    (item: AlbumListItem, index: number) =>
-      item.type === 'disc-header' ? `disc-${item.discNumber}` : `${item.track.id}-${index}`,
+    (item: AlbumListItem) =>
+      item.type === 'disc-header' ? `disc-${item.discNumber}` : `track-${item.track.id}`,
     [],
   );
 
