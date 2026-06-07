@@ -918,10 +918,10 @@ describe('clearMusicCacheTables', () => {
 /*  Envelope accessors                                                 */
 /* ------------------------------------------------------------------ */
 
-describe('getSongEnvelope / getCachedItemEnvelope', () => {
+describe('getSongEnvelope', () => {
   /* eslint-disable @typescript-eslint/no-require-imports */
   const storeModule = require('../musicCacheStore');
-  const { getSongEnvelope, getCachedItemEnvelope } = storeModule;
+  const { getSongEnvelope } = storeModule;
   /* eslint-enable @typescript-eslint/no-require-imports */
 
   beforeEach(() => {
@@ -964,38 +964,20 @@ describe('getSongEnvelope / getCachedItemEnvelope', () => {
     expect(getSongEnvelope('s1')).toBeNull();
   });
 
-  it('returns null for an item with no envelope', () => {
+  it('re-parses after the row is replaced by an upsert (no stale memo)', () => {
     musicCacheStore.setState({
-      cachedItems: {
-        '__starred__': { itemId: '__starred__', type: 'favorites' } as any,
-      },
+      cachedSongs: {
+        s1: { ...makeSong('s1'), rawJson: '{"id":"s1","isDir":false,"title":"Old"}' },
+      } as any,
     });
-    expect(getCachedItemEnvelope('__starred__')).toBeNull();
-  });
-
-  it('parses and caches the AlbumID3 / Playlist envelope', () => {
+    expect(getSongEnvelope('s1')?.title).toBe('Old');
+    // Replace the row object (an upsert) — the WeakMap is keyed on the row, so
+    // the new row misses the cache and re-parses.
     musicCacheStore.setState({
-      cachedItems: {
-        a1: {
-          itemId: 'a1',
-          type: 'album',
-          rawJson: '{"id":"a1","name":"Album1","songCount":10,"genre":"Jazz"}',
-        } as any,
-      },
+      cachedSongs: {
+        s1: { ...makeSong('s1'), rawJson: '{"id":"s1","isDir":false,"title":"New"}' },
+      } as any,
     });
-    const env = getCachedItemEnvelope('a1');
-    expect(env).toBeTruthy();
-    expect((env as any).genre).toBe('Jazz');
-    // Cached — same object identity on second call.
-    expect(getCachedItemEnvelope('a1')).toBe(env);
-  });
-
-  it('returns null on malformed item JSON', () => {
-    musicCacheStore.setState({
-      cachedItems: {
-        a1: { itemId: 'a1', type: 'album', rawJson: 'not-json' } as any,
-      },
-    });
-    expect(getCachedItemEnvelope('a1')).toBeNull();
+    expect(getSongEnvelope('s1')?.title).toBe('New');
   });
 });
