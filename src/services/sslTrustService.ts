@@ -147,9 +147,12 @@ export async function trustCertificateForHost(
     console.warn(`[sslTrustService] Failed to push cert for ${hostname}:`, err);
   }
 
-  // (iOS) register/refresh the local proxy now this host is trusted so the
-  // login retry + subsequent requests are routed through it.
-  fireAndForget(syncProxyUpstreams(), 'sslTrust.syncProxyUpstreams');
+  // NOTE: do NOT reconcile proxy upstreams here. During the login flow
+  // `authStore.serverUrl` isn't set yet, so syncProxyUpstreams() would
+  // reconcile to an empty/stale set and clobber the registration that the
+  // subsequent `login()` retry makes. `login()` registers the URL it's
+  // connecting to itself (and boot/untrust reconcile from authStore), so this
+  // host is covered without the racey call here.
 }
 
 /**
