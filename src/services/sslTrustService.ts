@@ -172,6 +172,30 @@ export async function removeTrustForHost(hostname: string): Promise<void> {
 }
 
 /**
+ * Clear the NATIVE trust store on logout and stop the proxy. The JS
+ * `sslCertStore` is reset separately by `resetAllStores`, but the native
+ * `SslTrustStore` (what the iOS URLProtocol swizzle / Android OkHttp actually
+ * read) and the proxy upstreams are not — without this the device keeps
+ * trusting the self-signed cert after logout. Pass the trusted hostnames
+ * captured BEFORE the JS store is wiped. Never rejects (best-effort).
+ */
+export async function clearNativeTrust(hostnames: string[]): Promise<void> {
+  for (const hostname of hostnames) {
+    try {
+      await nativeRemoveTrustedCertificate(hostname);
+    } catch (err) {
+      console.warn(`[sslTrustService] logout: failed to clear native cert ${hostname}:`, err);
+    }
+  }
+  // Stop the iOS streaming proxy (no upstreams remain). No-op on Android.
+  try {
+    await refreshProxyUpstreams([]);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/**
  * Reset module-private state — for tests only. Has no effect outside Jest.
  */
 export function __resetForTests(): void {
