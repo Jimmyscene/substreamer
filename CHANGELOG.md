@@ -1,5 +1,39 @@
 # Changelog
 
+## [8.0.71] - 2026-06-08
+
+- fix(expo-ssl-trust): make the trust store thread-safe + guard unsafe casts
+- fix(expo-async-fs): iOS space-tolerant path resolution
+- fix(expo-gzip): iOS truncation detection + dest-dir parity with Android
+- fix: clear/unref lingering background timers (clean jest worker exit)
+- fix: clean up useShuffleOverlay on unmount; atomic delete in usePlayerAlbumInfo
+- fix: unref the debounced-persist flush timer so jest exits cleanly
+- fix: don't drop a mid-switch failover intent; unblock awaitFirstPing on no-API
+- fix: surface HTTP errors + missing envelope in subsonic-api requestJSON
+- fix: make redownloadTrack atomic (download to .tmp, then swap)
+- perf: stabilise home FlashList separator/data + album-detail keys
+- fix: ignore transitional NetInfo 'unknown' state in auto-offline
+- chore: remove remaining dead code; fix MiniBarChart highlight no-op
+- perf: debounce+defer persist for artist/playlist detail stores
+- fix: stop unbounded envelope-cache leak in musicCacheStore
+- fix: hash UTF-8 bytes in the forked md5 so non-ASCII passwords authenticate
+- fix: guard player recovery/retry/queue-insert against mid-await track changes
+- fix: serialize song_index async transactions to prevent torn writes
+- feat: add root React error boundary
+- chore: remove dead code found in post-refactor audit
+- feat(image-cache): scan-on-open settings + clearer browser repair feedback
+- refactor(image-cache): async, DB-authoritative cover-art resolution
+- fix: render cover art with plain Image, not reanimated opacity
+- fix: cap BottomSheet to screen height and scroll tall content
+- fix: responsive Now Playing layout for very small screens (#90)
+- fix: mark location hardware features optional so GPS-less devices aren't filtered
+- feat: swipe-down to dismiss the player on Android
+- refactor: move battery-optimization card to Sound & Playback settings
+- fix: even spacing of secondary player controls on short screens
+- fix: expo-move-to-back Android Kotlin compile error
+- feat: Fire-OS background-playback guidance (#136)
+- fix: default RNTP ExoPlayer wake mode to NETWORK
+- fix: exclude __mocks__ from RNTP publish build (TS6 jest-types regression)
 ## [8.0.70] - 2026-06-04
 
 - fix: serve cover-art lookup from an in-memory index, not sync FS
