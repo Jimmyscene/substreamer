@@ -11,6 +11,23 @@ class SslTrustStore: NSObject {
     private var trustedCerts: [String: TrustedCertEntry] = [:]
     private var isInitialized = false
 
+    /// Serializes all access to the in-memory trust maps (`trustedCerts` and
+    /// `certDataStore`). They are READ on TLS-handshake threads (`checkTrust` /
+    /// `isCertificateTrusted` / `isFingerprintMismatch`, reached from the
+    /// URLProtocol's auth-challenge delegate) and WRITTEN from the JS-thread
+    /// module functions (`trustCertificate` / `storeCertificateData` / `load`).
+    /// Concurrent Swift Dictionary access is otherwise undefined behaviour (a
+    /// crash). Critical sections only touch the maps — UserDefaults and Keychain
+    /// I/O happen OUTSIDE the lock via snapshots, so a handshake-thread read is
+    /// never blocked behind disk/keychain work.
+    private let storeLock = NSLock()
+
+    private func withStoreLock<T>(_ body: () -> T) -> T {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return body()
+    }
+
     /// Whether the trust store has been installed. On iOS, registering the
     /// URLProtocol has no JSSE-style failure mode (unlike Android), so this is
     /// simply true once `initialize()` has run. Exposed so the module's
@@ -34,16 +51,15 @@ class SslTrustStore: NSObject {
     
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return }
-        do {
-            trustedCerts = try JSONDecoder().decode([String: TrustedCertEntry].self, from: data)
-        } catch {
-            trustedCerts = [:]
-        }
+        let decoded = (try? JSONDecoder().decode([String: TrustedCertEntry].self, from: data)) ?? [:]
+        withStoreLock { trustedCerts = decoded }
     }
-    
+
     private func save() {
+        // Snapshot under the lock, then encode/write to UserDefaults outside it.
+        let snapshot = withStoreLock { trustedCerts }
         do {
-            let data = try JSONEncoder().encode(trustedCerts)
+            let data = try JSONEncoder().encode(snapshot)
             UserDefaults.standard.set(data, forKey: userDefaultsKey)
         } catch {
             print("[SslTrustStore] Failed to save: \(error)")
@@ -53,27 +69,33 @@ class SslTrustStore: NSObject {
     // MARK: - Trust Management
     
     func trustCertificate(hostname: String, sha256Fingerprint: String) {
-        trustedCerts[hostname] = TrustedCertEntry(
+        let entry = TrustedCertEntry(
             sha256Fingerprint: sha256Fingerprint.uppercased(),
             acceptedAt: Double(Date().timeIntervalSince1970 * 1000)
         )
+        // Write the map entry and read back any stored DER in one critical section.
+        let derData: Data? = withStoreLock {
+            trustedCerts[hostname] = entry
+            return certDataStore[hostname]
+        }
         save()
-        // Also add to Keychain for AVPlayer using stored DER data if available
-        if let derData = certDataStore[hostname] {
+        // Also add to Keychain for AVPlayer using stored DER data if available.
+        if let derData = derData {
             addCertToKeychain(hostname: hostname, certData: derData)
         } else {
             addFingerprintToKeychain(hostname: hostname)
         }
     }
-    
+
     func removeTrustedCertificate(hostname: String) {
-        trustedCerts.removeValue(forKey: hostname)
+        withStoreLock { _ = trustedCerts.removeValue(forKey: hostname) }
         save()
         removeCertFromKeychain(hostname: hostname)
     }
-    
+
     func getTrustedCertificates() -> [[String: Any]] {
-        return trustedCerts.map { (hostname, entry) in
+        let snapshot = withStoreLock { trustedCerts }
+        return snapshot.map { (hostname, entry) in
             [
                 "hostname": hostname,
                 "sha256Fingerprint": entry.sha256Fingerprint,
@@ -81,9 +103,9 @@ class SslTrustStore: NSObject {
             ]
         }
     }
-    
+
     func isCertificateTrusted(hostname: String) -> Bool {
-        return trustedCerts[hostname] != nil
+        return withStoreLock { trustedCerts[hostname] != nil }
     }
     
     /// Check if a server trust is valid against our custom store.
@@ -98,8 +120,8 @@ class SslTrustStore: NSObject {
     }
     
     func checkTrust(hostname: String, serverTrust: SecTrust) -> Bool {
-        guard let entry = trustedCerts[hostname] else { return false }
-        
+        guard let entry = withStoreLock({ trustedCerts[hostname] }) else { return false }
+
         guard let certificate = SslTrustStore.leafCertificate(from: serverTrust) else {
             return false
         }
@@ -114,7 +136,7 @@ class SslTrustStore: NSObject {
     }
     
     func isFingerprintMismatch(hostname: String, serverTrust: SecTrust) -> Bool {
-        guard let entry = trustedCerts[hostname] else { return false }
+        guard let entry = withStoreLock({ trustedCerts[hostname] }) else { return false }
         guard let certificate = SslTrustStore.leafCertificate(from: serverTrust) else {
             return false
         }
@@ -149,12 +171,12 @@ class SslTrustStore: NSObject {
     private var certDataStore: [String: Data] = [:]
     
     func storeCertificateData(hostname: String, derData: Data) {
-        certDataStore[hostname] = derData
+        withStoreLock { certDataStore[hostname] = derData }
         addCertToKeychain(hostname: hostname, certData: derData)
     }
-    
+
     func getCertificateData(hostname: String) -> Data? {
-        return certDataStore[hostname]
+        return withStoreLock { certDataStore[hostname] }
     }
     
     // MARK: - Keychain Management (for AVPlayer)
@@ -192,7 +214,7 @@ class SslTrustStore: NSObject {
     
     /// Fallback: store just the fingerprint as a generic password
     private func addFingerprintToKeychain(hostname: String) {
-        guard let entry = trustedCerts[hostname] else { return }
+        guard let entry = withStoreLock({ trustedCerts[hostname] }) else { return }
         let tag = "expo.ssl.trust.fp.\(hostname)"
         // U6 hygiene: fingerprint is hex ASCII so UTF-8 encoding can't fail in
         // practice, but the force-unwrap is still removed defensively.

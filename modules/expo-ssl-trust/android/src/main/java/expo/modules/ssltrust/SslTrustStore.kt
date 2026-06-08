@@ -12,6 +12,7 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import java.security.KeyStore
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Manages the persisted store of trusted self-signed certificate fingerprints.
@@ -22,10 +23,15 @@ object SslTrustStore {
     private const val KEY_TRUSTED_CERTS = "trusted_certs"
 
     private var prefs: SharedPreferences? = null
-    // hostname -> { sha256, acceptedAt }
-    private val trustedCerts = mutableMapOf<String, TrustedCertEntry>()
+    // hostname -> { sha256, acceptedAt }.
+    // ConcurrentHashMap: these maps are read on OkHttp/JSSE TLS-handshake threads
+    // (AppTrustManager.checkServerTrusted, CustomHostnameVerifier) while being
+    // written from the JS-thread module functions (trustCertificate /
+    // storeCertDerData). A plain mutableMap would risk ConcurrentModificationException
+    // on the weakly-consistent iteration in those handshake reads.
+    private val trustedCerts = ConcurrentHashMap<String, TrustedCertEntry>()
     // hostname -> DER-encoded certificate data (for ExoPlayer trust)
-    private val certDerData = mutableMapOf<String, ByteArray>()
+    private val certDerData = ConcurrentHashMap<String, ByteArray>()
 
     data class TrustedCertEntry(
         val sha256Fingerprint: String,

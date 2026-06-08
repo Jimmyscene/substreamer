@@ -48,7 +48,8 @@ object CertificateInspector {
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, arrayOf<TrustManager>(trustAllManager), java.security.SecureRandom())
 
-        val connection = url.openConnection() as HttpsURLConnection
+        val connection = url.openConnection() as? HttpsURLConnection
+            ?: throw Exception("Not an HTTPS URL: ${url.protocol}")
         connection.sslSocketFactory = sslContext.socketFactory
         connection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
         connection.connectTimeout = 10_000
@@ -62,7 +63,8 @@ object CertificateInspector {
                 throw Exception("No certificates returned by server")
             }
 
-            val leaf = certs[0] as X509Certificate
+            val leaf = certs[0] as? X509Certificate
+                ?: throw Exception("Server leaf certificate is not X.509")
             return extractCertInfo(leaf)
         } finally {
             connection.disconnect()
