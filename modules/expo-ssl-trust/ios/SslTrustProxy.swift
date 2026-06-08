@@ -57,6 +57,7 @@ final class SslTrustProxy: NSObject {
             }
             let token = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
             upstreamsByToken[token] = normalized
+            NSLog("[SSLPROXY] register %@ -> %@", normalized, token)
             return token
         }
     }

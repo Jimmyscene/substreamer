@@ -5,7 +5,17 @@ import Security
 public class ExpoSslTrustModule: Module {
     public func definition() -> ModuleDefinition {
         Name("ExpoSslTrust")
-        
+
+        // At app launch (before RN makes its first request and caches its
+        // NSURLSession): load the trust store and install the URLSession swizzle
+        // so RN fetch / images / downloads consult SslTrustURLProtocol for
+        // trusted self-signed hosts — the Android-equivalent "just works" path.
+        // The local proxy is used only for AVPlayer streaming.
+        OnCreate {
+            SslTrustStore.shared.initialize()
+            URLSessionConfiguration.sslTrustInstallSwizzle()
+        }
+
         AsyncFunction("initTrustStore") { (promise: Promise) in
             SslTrustStore.shared.initialize()
             // Resolve the install status to match the Android contract

@@ -13,10 +13,12 @@ import { fireAndForget } from '../utils/fireAndForget';
 
 /**
  * Reconcile the iOS local reverse proxy with the app's configured server URLs.
- * The native side proxies only the ones whose host has a trusted self-signed
- * cert; everything else connects directly. No-op on Android.
+ * The proxy is only for AVPlayer streaming (`getStreamUrl`) to a trusted
+ * self-signed host — login/API/covers/downloads go through the NSURLSession
+ * swizzle instead. Call AFTER login (authStore is set) and at boot. No-op on
+ * Android / when no configured host is self-signed.
  */
-async function syncProxyUpstreams(): Promise<void> {
+export async function syncProxyUpstreams(): Promise<void> {
   const { serverUrl, primaryServerUrl, secondaryServerUrl } = authStore.getState();
   const urls = [serverUrl, primaryServerUrl, secondaryServerUrl].filter(
     (u): u is string => !!u,
