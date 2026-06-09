@@ -1,5 +1,19 @@
 # Changelog
 
+## [8.0.72] - 2026-06-09
+
+- fix(tuned-in): suppress Jump back in flash before For You renders
+- fix(ssl-trust): Android first-time trust + iOS proxy + server-address UI
+- docs(agents): non-negotiable rule — never assume, never guess, always validate
+- debug+fix(ssl-trust): proxy diagnostics + ensureRunning duplicate-listener fix
+- fix(ssl-trust): clear ALL native certs on logout (query native, not JS list)
+- fix(ssl-trust): clear native trust + stop proxy on logout
+- refactor(ssl-trust): NSURLSession swizzle for login/browse, proxy only for AVPlayer
+- fix(ssl-trust): don't reconcile proxy upstreams on trust (clobber race)
+- fix(login): prompt to trust self-signed cert on iOS (RN reports -1005)
+- chore: gitignore tools/ (local dev test harnesses with personal server details)
+- feat(expo-ssl-trust): iOS self-signed support via in-plugin loopback proxy (#175)
+- perf: move cached-download deletes off the JS thread (async unlinks)
 ## [8.0.71] - 2026-06-08
 
 - fix(expo-ssl-trust): make the trust store thread-safe + guard unsafe casts
