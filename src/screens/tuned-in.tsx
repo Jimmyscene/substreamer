@@ -863,6 +863,11 @@ export function TunedInScreen() {
   // `setTimeout(0)` (not rAF — rAF can stall on RN 0.85/Fabric) so the
   // transition's final frame paints first. `refreshKey` re-rolls the picks.
   const [mixes, setMixes] = useState<ReturnType<typeof generateMixes>>([]);
+  // True once the deferred mix compute has run at least once. Gating the screen
+  // on this (not just `transitionComplete`) prevents a flash where "Jump back in"
+  // (available immediately) renders at the top for a frame before "For You" is
+  // computed and pops in above it. Stays true across refreshes.
+  const [mixesReady, setMixesReady] = useState(false);
   useEffect(() => {
     if (!transitionComplete) return;
     const handle = setTimeout(() => {
@@ -882,6 +887,7 @@ export function TunedInScreen() {
           listLength: layoutPreferencesStore.getState().listLength,
         }),
       );
+      setMixesReady(true);
     }, 0);
     return () => clearTimeout(handle);
   }, [transitionComplete, aggregates, completedScrobbles, starredSongs, online, refreshKey]);
@@ -948,7 +954,10 @@ export function TunedInScreen() {
 
   const showJumpBackIn = online && recentlyPlayed.length > 0;
 
-  if (!transitionComplete) {
+  // Hold the spinner until the deferred mix compute has run, so the content
+  // appears as one frame (For You animating in, Jump back in already placed)
+  // rather than flashing Jump back in first.
+  if (!transitionComplete || !mixesReady) {
     return (
       <GradientBackground style={styles.loadingContainer}>
         <ActivityIndicator color={colors.primary} size="large" />
