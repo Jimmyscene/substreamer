@@ -22,6 +22,7 @@ These rules override everything else in this file when in conflict:
 3. **Never fabricate.** Not file paths, not commit hashes, not API names, not test results, not library functions. If you don't know, read the file, run the command, or say "I don't know, let me check."
 4. **Stop when confused.** If the task has two plausible interpretations, ask. Do not pick silently and proceed.
 5. **Touch only what you must.** Every changed line must trace directly to the user's request. No drive-by refactors, reformatting, or "while I was in there" cleanups.
+6. **Never assume, never guess, always validate.** A mechanism you have not observed is a hypothesis, not a fact — never state it as one, and never build a fix on top of it. When behaviour surprises you, get evidence *before* theorising: read the actual source (not what you remember it does), capture the real logs (`adb logcat`, instrument the code, add a temporary diagnostic), and reproduce it. Diff against the correct baseline (the shipped tag, not whatever branch is handy). Phrases like "it probably works like…", "this should fix it", or "I presume" are red flags — replace them with what you measured. A wrong root cause asserted confidently wastes more time than saying "I don't know yet — let me get evidence."
 
 ---
 
