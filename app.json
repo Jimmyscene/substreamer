@@ -13,7 +13,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.ghenry22.substream2",
-      "buildNumber": "156",
+      "buildNumber": "157",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
@@ -26,7 +26,8 @@
         "NSLocationWhenInUseUsageDescription": "Location access is needed to detect your WiFi network name for automatic offline mode switching."
       },
       "entitlements": {
-        "com.apple.developer.networking.wifi-info": true
+        "com.apple.developer.networking.wifi-info": true,
+        "com.apple.developer.carplay-audio": true
       }
     },
     "android": {
