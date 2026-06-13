@@ -1,11 +1,11 @@
-New in this release:
 • Playback speed control
-• Server failover with a backup URL
-• Self-signed certificate support
+• Support multiple server URLs
+• Self-signed certificate fixes
 • Download your entire library
-• Save & restore play-queue bookmarks
-• Share songs, plus Play Next & More Like This
-• New Songs view and faster search
-• Improved tablet portrait player
-
-Smoother scrolling and fewer freezes on large libraries, plus more reliable cover art, offline playback and overall stability — and many bug fixes.
+• Bookmarks
+• Share songs
+• Play Next
+• Library songs view & faster search
+• Improved tablet layouts
+• Small screen fixes
+• Many more bug fixes and enhancements.

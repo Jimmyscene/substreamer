@@ -1,11 +1,10 @@
-New in this release:
 • Playback speed control
-• Server failover with a backup URL
-• Swipe down to dismiss the player
-• Download your entire library
-• Save & restore play-queue bookmarks
-• Share songs, plus Play Next & More Like This
-• New Songs view and faster search
-• Improved tablet portrait player
-
-Smoother scrolling and fewer freezes on large libraries, plus more reliable cover art, offline playback and overall stability — and many bug fixes.
+• Support multiple server URLs
+• Download your entire library in settings
+• Bookmarks
+• Share songs
+• Play Next & More Like This
+• Library Songs view & faster search
+• Tablet landscape and portrait layouts
+• Small screen layouts
+• Many more bug fixes and enhancements.
