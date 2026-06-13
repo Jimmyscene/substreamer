@@ -1,6 +1,7 @@
 import Ionicons from "@react-native-vector-icons/ionicons/static";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -72,6 +73,15 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
   const scrollRef = useRef<ScrollView>(null);
   const lineRefs = useRef<(View | null)[]>([]);
 
+  // Foreground/background gate. This is a background-audio app, so the JS
+  // thread keeps running while backgrounded and the native player keeps
+  // emitting progress events — but the rAF extrapolation loop and any scroll
+  // work must suspend so we don't drive Reanimated commits + ScrollView
+  // geometry off-screen. That sustained off-screen work is what the OS
+  // watchdog terminates the app for (the reported "crash when backgrounded
+  // with lyrics open").
+  const appActiveRef = useRef(AppState.currentState === 'active');
+
   // Active line: React state drives the scroll effect; shared value feeds
   // the per-line opacity/scale worklets in LyricsLineRow.
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -122,6 +132,7 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
   // asks native for the line's y + height relative to the ScrollView's
   // content — no spacer math required on our side.
   const scrollToActiveLine = useCallback(() => {
+    if (!appActiveRef.current) return;
     if (activeIndex < 0) return;
     const lineRef = lineRefs.current[activeIndex];
     const scroll = scrollRef.current;
@@ -144,6 +155,21 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
       },
     );
   }, [activeIndex]);
+
+  // Re-centre on the active line, but honour the user-scroll lockout so we
+  // never yank the list out from under someone mid-read. Shared by the
+  // active-line-advance effect and the foreground-resume re-centre.
+  const maybeAutoScroll = useCallback(() => {
+    if (userScrollingRef.current) return;
+    if (Date.now() - userScrollEndAtRef.current < USER_SCROLL_LOCKOUT_MS) return;
+    scrollToActiveLine();
+    setShowResyncPill(false);
+  }, [scrollToActiveLine]);
+
+  // Latest-callback ref so the AppState listener (registered once) can call
+  // the current maybeAutoScroll after a foreground transition.
+  const maybeAutoScrollRef = useRef(maybeAutoScroll);
+  maybeAutoScrollRef.current = maybeAutoScroll;
 
   const handleScrollBeginDrag = useCallback(() => {
     userScrollingRef.current = true;
@@ -198,15 +224,11 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
     };
   }, []);
 
-  // Auto-scroll when the active line advances. Guarded by the user-scroll
-  // lockout so we don't yank the list out from under a reader.
+  // Auto-scroll when the active line advances.
   useEffect(() => {
     if (activeIndex < 0) return;
-    if (userScrollingRef.current) return;
-    if (Date.now() - userScrollEndAtRef.current < USER_SCROLL_LOCKOUT_MS) return;
-    scrollToActiveLine();
-    setShowResyncPill(false);
-  }, [activeIndex, scrollToActiveLine]);
+    maybeAutoScroll();
+  }, [activeIndex, maybeAutoScroll]);
 
   // Viewport height captured from the outer container's onLayout — used
   // by the scroll effect above to compute the midpoint target.
@@ -230,8 +252,16 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
 
   const tapDisabled = source === 'fake';
 
-  // Shared value mirror of the extrapolated ms, driven by a JS-thread
-  // polling loop. Used by LyricsInterludeRow for breathing-dot timing.
+  // Shared value mirror of the extrapolated ms, driven by a JS-thread rAF
+  // loop. Used by LyricsInterludeRow for breathing-dot timing.
+  //
+  // The loop runs only while the app is in the foreground. Backgrounded, the
+  // JS thread keeps executing (background audio) and the native player keeps
+  // emitting progress events — an ungated loop would keep writing the shared
+  // value and waking the Reanimated UI thread to recompute every line's
+  // worklet styles at the display refresh rate, off-screen and indefinitely.
+  // That sustained off-screen commit work is what crashes the app when
+  // backgrounded with lyrics open.
   const extrapolatedMs = useSharedValue(0);
   useEffect(() => {
     let rafId: number | null = null;
@@ -242,7 +272,6 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
       sampledSec = s.position;
       sampledAt = Date.now();
     };
-    const unsub = playerStore.subscribe(resample);
     const tick = () => {
       const s = playerStore.getState();
       const elapsedSec =
@@ -250,10 +279,37 @@ export const SyncedLyricsView = memo(function SyncedLyricsView({
       extrapolatedMs.value = (sampledSec + elapsedSec) * 1000;
       rafId = requestAnimationFrame(tick);
     };
-    tick();
+    const start = () => {
+      if (rafId != null) return;
+      resample();
+      tick();
+    };
+    const stop = () => {
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+    const unsub = playerStore.subscribe(resample);
+    const appSub = AppState.addEventListener('change', (next) => {
+      const active = next === 'active';
+      appActiveRef.current = active;
+      if (active) {
+        start();
+        // While backgrounded the active index kept advancing but auto-scroll
+        // was suppressed, so the view is parked on a stale line. Re-centre,
+        // but via maybeAutoScroll so a user who scrolled away just before
+        // backgrounding isn't yanked back inside the lockout window.
+        maybeAutoScrollRef.current();
+      } else {
+        stop();
+      }
+    });
+    if (appActiveRef.current) start();
     return () => {
       unsub();
-      if (rafId != null) cancelAnimationFrame(rafId);
+      appSub.remove();
+      stop();
     };
   }, [extrapolatedMs]);
 
