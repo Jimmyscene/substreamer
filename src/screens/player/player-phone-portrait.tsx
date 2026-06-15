@@ -19,7 +19,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { GestureDetector, Pressable as GHPressable } from 'react-native-gesture-handler';
+import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
@@ -47,7 +47,6 @@ import { useCanSkip } from '@/hooks/useCanSkip';
 import { useImagePalette } from '@/hooks/useImagePalette';
 import { usePlayerActions } from '@/hooks/usePlayerActions';
 import { useShuffleOverlay } from '@/hooks/useShuffleOverlay';
-import { useSwipeDownDismiss } from '@/hooks/useSwipeDownDismiss';
 import { getPlayerSize } from '@/hooks/playerSize';
 import { useTheme } from '@/hooks/useTheme';
 import { offlineModeStore } from '@/store/offlineModeStore';
@@ -235,16 +234,6 @@ export function PlayerPhonePortrait() {
     spinStyle,
   } = useShuffleOverlay();
 
-  // Android-only swipe-down-to-dismiss. iOS gets this natively from
-  // react-native-screens (`gestureDirection: 'vertical'`), which is iOS-only.
-  // Enabled only on the Player tab (no scroll there) so swiping down anywhere
-  // on the player view dismisses; the scrollable tabs keep scrolling.
-  const { dragStyle, makeGesture } = useSwipeDownDismiss(onClose);
-  const playerTabGesture = useMemo(
-    () => makeGesture(activeTab === 'player'),
-    [makeGesture, activeTab],
-  );
-
   const gradientAnimatedStyle = useAnimatedStyle(() => ({
     opacity: gradientOpacity.value,
   }));
@@ -320,7 +309,7 @@ export function PlayerPhonePortrait() {
           </Stack.Toolbar>
         </>
       )}
-      <Animated.View style={[styles.container, { backgroundColor: colors.background }, dragStyle]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Gradient background */}
         <View style={[absoluteFill, { backgroundColor: colors.background }]} />
         <Animated.View
@@ -346,18 +335,14 @@ export function PlayerPhonePortrait() {
             ]}
             pointerEvents={activeTab === 'player' ? 'auto' : 'none'}
           >
-            <GestureDetector gesture={playerTabGesture}>
-              <View style={styles.playerGestureWrap}>
-                <PlayerContent
-                  currentTrack={currentTrack}
-                  colors={colors}
-                  queueLoading={queueLoading}
-                  handleSeek={handleSeek}
-                  handleShuffle={handleShuffle}
-                  shuffling={shuffling}
-                />
-              </View>
-            </GestureDetector>
+            <PlayerContent
+              currentTrack={currentTrack}
+              colors={colors}
+              queueLoading={queueLoading}
+              handleSeek={handleSeek}
+              handleShuffle={handleShuffle}
+              shuffling={shuffling}
+            />
           </Animated.View>
 
           {/* Queue tab — below header */}
@@ -427,7 +412,7 @@ export function PlayerPhonePortrait() {
           spinStyle={spinStyle}
           colors={colors}
         />
-      </Animated.View>
+      </View>
     </>
   );
 }
@@ -868,9 +853,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   playerContentContainer: {
-    flex: 1,
-  },
-  playerGestureWrap: {
     flex: 1,
   },
   playerSpacer: {

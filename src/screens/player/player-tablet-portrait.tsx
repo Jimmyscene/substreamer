@@ -13,7 +13,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { GestureDetector, Pressable as GHPressable } from 'react-native-gesture-handler';
+import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,7 +37,6 @@ import { useCanSkip } from '@/hooks/useCanSkip';
 import { useImagePalette } from '@/hooks/useImagePalette';
 import { usePlayerActions } from '@/hooks/usePlayerActions';
 import { useShuffleOverlay } from '@/hooks/useShuffleOverlay';
-import { useSwipeDownDismiss } from '@/hooks/useSwipeDownDismiss';
 import { useTheme } from '@/hooks/useTheme';
 import {
   clearQueue,
@@ -87,13 +86,6 @@ export function PlayerTabletPortrait() {
   }, [offlineMode, mode]);
 
   const onClose = useCallback(() => router.back(), [router]);
-
-  // Android-only swipe-down-to-dismiss (iOS gets it natively from
-  // react-native-screens). The tablet splits into a non-scrollable top player
-  // section and a scrollable bottom section, so a downward swipe on the top
-  // section dismisses while the bottom keeps scrolling — no gesture conflict.
-  const { dragStyle, makeGesture } = useSwipeDownDismiss(onClose);
-  const topSectionGesture = useMemo(() => makeGesture(true), [makeGesture]);
 
   const onClearConfirmed = useCallback(() => {
     onClose();
@@ -206,7 +198,7 @@ export function PlayerTabletPortrait() {
           </Stack.Toolbar>
         </>
       )}
-      <Animated.View style={[styles.container, { backgroundColor: colors.background }, dragStyle]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Single page-wide gradient background */}
         <View style={[absoluteFill, { backgroundColor: colors.background }]} />
         <Animated.View style={[absoluteFill, gradientAnimatedStyle]} pointerEvents="none">
@@ -214,9 +206,7 @@ export function PlayerTabletPortrait() {
         </Animated.View>
 
         <View style={[styles.content, { paddingTop: headerSpace, paddingBottom: insets.bottom }]}>
-          {/* Top band: cover art (left) + info/progress/controls (right).
-              Swipe-down anywhere here dismisses on Android. */}
-          <GestureDetector gesture={topSectionGesture}>
+          {/* Top band: cover art (left) + info/progress/controls (right). */}
           <View style={styles.topSection}>
             <View style={styles.band}>
               <View style={[styles.heroImageWrap, { width: artSize, height: artSize }]}>
@@ -257,7 +247,6 @@ export function PlayerTabletPortrait() {
               </View>
             </View>
           </View>
-          </GestureDetector>
 
           {/* Centered Queue / Info / Lyrics toggle, between the two sections */}
           <ModeToggle mode={mode} onSelect={setMode} colors={colors} offlineMode={offlineMode} />
@@ -287,7 +276,7 @@ export function PlayerTabletPortrait() {
           spinStyle={spinStyle}
           colors={colors}
         />
-      </Animated.View>
+      </View>
     </>
   );
 }
