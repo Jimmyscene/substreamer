@@ -312,12 +312,14 @@ export function ArtistDetailScreen() {
           </View>
         </View>
         <View style={styles.heroButtons}>
-          <PillToggle
-            options={playModeOptions}
-            selected={artistPlayMode}
-            onSelect={handlePlayModeChange}
-            colors={colors}
-          />
+          {topSongs.length > 0 && (
+            <PillToggle
+              options={playModeOptions}
+              selected={artistPlayMode}
+              onSelect={handlePlayModeChange}
+              colors={colors}
+            />
+          )}
           <View style={styles.heroPlayButtons}>
             <Pressable
               onPress={() => {
@@ -640,7 +642,7 @@ const styles = StyleSheet.create({
   heroButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: 16,
   },
   heroPlayButtons: {
